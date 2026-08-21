@@ -1,17 +1,18 @@
 {
   "expo": {
-    "name": "self-care-tracker",
-    "slug": "self-care-tracker",
+    "name": "Spoons",
+    "slug": "spoons",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "backgroundColor": "#fdfaf6",
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "com.morgankquinn.spoons",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -20,6 +21,10 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-sqlite",
+      "@react-native-community/datetimepicker"
+    ]
   }
 }
