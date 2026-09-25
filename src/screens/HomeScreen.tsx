@@ -12,35 +12,31 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import {
   completeTask,
   DEFAULT_BUDGET_KEY,
-  getAllTasks,
-  getBudgetForDate,
-  getSetting,
   setBudgetForDate,
   setSetting,
   uncompleteTask,
 } from "../db/database";
-import { getTasksWithStatus, todayDateString } from "../db/logic";
+import { todayDateString } from "../db/logic";
+import { loadDayStatus } from "../db/selectors";
 import { TaskWithStatus } from "../types";
 import { formatTimeLabel } from "../utils/time";
 
 export default function HomeScreen() {
   const navigation = useNavigation<any>();
   const today = todayDateString();
-  const [budget, setBudget] = useState<number>(0);
+  const [budget, setBudget] = useState(0);
   const [budgetInput, setBudgetInput] = useState("");
+  const [spent, setSpent] = useState(0);
+  const [remaining, setRemaining] = useState(0);
   const [tasks, setTasks] = useState<TaskWithStatus[]>([]);
 
   const load = useCallback(() => {
-    let todayBudget = getBudgetForDate(today);
-    if (todayBudget === null) {
-      const fallback = getSetting(DEFAULT_BUDGET_KEY);
-      todayBudget = fallback ? parseInt(fallback, 10) : 10;
-    }
-    setBudget(todayBudget);
-    setBudgetInput(String(todayBudget));
-
-    const allTasks = getAllTasks();
-    setTasks(getTasksWithStatus(allTasks, new Date(), todayBudget));
+    const status = loadDayStatus(today);
+    setBudget(status.budget);
+    setBudgetInput(String(status.budget));
+    setSpent(status.spent);
+    setRemaining(status.remaining);
+    setTasks(status.tasks);
   }, [today]);
 
   useFocusEffect(
@@ -51,10 +47,14 @@ export default function HomeScreen() {
 
   const saveBudget = () => {
     const value = parseInt(budgetInput, 10);
-    if (Number.isNaN(value) || value < 0) return;
+    if (Number.isNaN(value) || value < 0) {
+      setBudgetInput(String(budget)); // reject the edit and show the real value again
+      return;
+    }
     setBudgetForDate(today, value);
+    // Carried forward so tomorrow starts here too; past days keep their own
+    // frozen budget, so this no longer rewrites history.
     setSetting(DEFAULT_BUDGET_KEY, String(value));
-    setBudget(value);
     load();
   };
 
@@ -70,11 +70,6 @@ export default function HomeScreen() {
   const editTask = (task: TaskWithStatus) => {
     navigation.navigate("TaskForm", { taskId: task.id });
   };
-
-  const spent = tasks
-    .filter((t) => t.completedToday)
-    .reduce((sum, t) => sum + t.energyCost, 0);
-  const remaining = budget - spent;
 
   const scheduledTasks = tasks.filter((t) => t.scheduledToday);
   const otherTasks = tasks.filter((t) => !t.scheduledToday);
@@ -96,8 +91,10 @@ export default function HomeScreen() {
             onChangeText={setBudgetInput}
             onEndEditing={saveBudget}
           />
-          <Text style={styles.budgetRemaining}>
-            {remaining} / {budget} remaining
+          <Text style={[styles.budgetRemaining, remaining < 0 && styles.budgetOver]}>
+            {remaining < 0
+              ? `${spent} / ${budget} · ${-remaining} over`
+              : `${remaining} / ${budget} remaining`}
           </Text>
         </View>
       </View>
@@ -218,6 +215,7 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
   },
   budgetRemaining: { fontSize: 16, fontWeight: "600", color: "#4a3f38" },
+  budgetOver: { color: "#a15c3c" },
   listContent: { paddingHorizontal: 16, paddingBottom: 100 },
   emptyText: { color: "#8a7b70", textAlign: "center", marginTop: 24 },
   sectionHeader: { marginTop: 16, marginBottom: 8, color: "#8a7b70", fontSize: 13 },

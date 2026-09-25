@@ -43,6 +43,27 @@ export function initDatabase() {
 
   ensureColumn("tasks", "reminderEnabled", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn("tasks", "reminderTime", "TEXT");
+  enforceOneCompletionPerTaskPerDay();
+
+  db.execSync(`CREATE INDEX IF NOT EXISTS idx_completions_date ON completions (date)`);
+}
+
+/**
+ * Guarantees a task can only be completed once per day.
+ *
+ * Without this, a double-tap inserted two rows and getEnergySpentByDate's SUM
+ * double-counted the energy forever. A UNIQUE table constraint can't be added to
+ * an existing table, so we drop any duplicates already on disk (keeping the
+ * earliest) and enforce it with a unique index instead.
+ */
+function enforceOneCompletionPerTaskPerDay() {
+  db.execSync(`
+    DELETE FROM completions
+    WHERE id NOT IN (SELECT MIN(id) FROM completions GROUP BY taskId, date);
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_completions_task_date
+      ON completions (taskId, date);
+  `);
 }
 
 /** Adds a column to an existing table only if it isn't already there — portable across SQLite builds that don't support "ADD COLUMN IF NOT EXISTS". */
@@ -147,7 +168,7 @@ function rowToTask(row: any): Task {
 
 export function completeTask(taskId: number, date: string) {
   db.runSync(
-    `INSERT INTO completions (taskId, date, completedAt) VALUES (?, ?, ?)`,
+    `INSERT OR IGNORE INTO completions (taskId, date, completedAt) VALUES (?, ?, ?)`,
     [taskId, date, new Date().toISOString()]
   );
 }
@@ -161,23 +182,23 @@ export function getCompletionsForDate(date: string): number[] {
   return rows.map((r) => r.taskId);
 }
 
-export function getStreak(taskId: number, today: string): number {
-  const rows = db.getAllSync<any>(
-    `SELECT date FROM completions WHERE taskId = ? ORDER BY date DESC`,
-    [taskId]
-  );
-  const dates = new Set(rows.map((r) => r.date));
-  let streak = 0;
-  let cursor = new Date(today);
-  // if today isn't completed yet, start checking from yesterday
-  if (!dates.has(today)) {
-    cursor.setDate(cursor.getDate() - 1);
+/**
+ * Every completion date, grouped by task, for streak calculation. Loading the
+ * whole table at once keeps this a single query instead of one per task; a
+ * personal tracker's completion history stays small.
+ */
+export function getCompletedDatesByTask(): Map<number, Set<string>> {
+  const rows = db.getAllSync<any>(`SELECT taskId, date FROM completions`);
+  const byTask = new Map<number, Set<string>>();
+  for (const row of rows) {
+    let dates = byTask.get(row.taskId);
+    if (!dates) {
+      dates = new Set<string>();
+      byTask.set(row.taskId, dates);
+    }
+    dates.add(row.date);
   }
-  while (dates.has(cursor.toISOString().slice(0, 10))) {
-    streak++;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  return streak;
+  return byTask;
 }
 
 // ---- Daily budget ----
@@ -193,6 +214,19 @@ export function setBudgetForDate(date: string, budget: number) {
      ON CONFLICT(date) DO UPDATE SET budget = excluded.budget`,
     [date, budget]
   );
+}
+
+/**
+ * Freezes a day's effective budget the first time that day is opened, returning
+ * whatever budget applies. Without this, past days with no saved budget were
+ * rendered using the *current* default, so raising today's budget retroactively
+ * rewrote every untouched day in the trend chart.
+ */
+export function materializeBudgetForDate(date: string, fallback: number): number {
+  const existing = getBudgetForDate(date);
+  if (existing !== null) return existing;
+  setBudgetForDate(date, fallback);
+  return fallback;
 }
 
 /** Total energy spent (sum of completed tasks' energy cost) per date, for dates within the given range. */

@@ -1,7 +1,9 @@
 import { useCallback, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { getUsageTrend, DayUsage } from "../db/logic";
+import { DayUsage, todayDateString } from "../db/logic";
+import { loadUsageTrend } from "../db/selectors";
+import { parseDateString } from "../utils/date";
 
 const WINDOW_DAYS = 14;
 const CHART_HEIGHT = 140;
@@ -13,7 +15,7 @@ export default function StatsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      setTrend(getUsageTrend(WINDOW_DAYS));
+      setTrend(loadUsageTrend(WINDOW_DAYS, todayDateString()));
     }, [])
   );
 
@@ -85,10 +87,9 @@ function DayBar({ day, maxScale }: { day: DayUsage; maxScale: number }) {
   const budgetHeight = (day.budget / maxScale) * CHART_HEIGHT;
   const spentHeight = (Math.min(day.spent, day.budget) / maxScale) * CHART_HEIGHT;
   const overHeight = (Math.max(day.spent - day.budget, 0) / maxScale) * CHART_HEIGHT;
-  const dateLabel = new Date(day.date + "T00:00:00").toLocaleDateString(undefined, {
-    weekday: "short",
-  });
-  const dayLabel = new Date(day.date + "T00:00:00").getDate();
+  const parsed = parseDateString(day.date);
+  const dateLabel = parsed.toLocaleDateString(undefined, { weekday: "short" });
+  const dayLabel = parsed.getDate();
 
   return (
     <View style={styles.dayColumn}>
