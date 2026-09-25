@@ -27,6 +27,17 @@ export interface DailyBudget {
   budget: number;
 }
 
+/**
+ * Raw table contents for a backup. Rows stay in their on-disk shape (daysOfWeek as
+ * a JSON string, booleans as 0/1) so a restore is a straight reinsert.
+ */
+export interface DatabaseSnapshot {
+  tasks: any[];
+  completions: any[];
+  dailyBudgets: any[];
+  settings: any[];
+}
+
 export interface TaskWithStatus extends Task {
   completedToday: boolean;
   fitsRemainingBudget: boolean;

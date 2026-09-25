@@ -1,9 +1,9 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  FlatList,
+  SectionList,
   TouchableOpacity,
   TextInput,
   Pressable,
@@ -16,10 +16,25 @@ import {
   setSetting,
   uncompleteTask,
 } from "../db/database";
-import { todayDateString } from "../db/logic";
+import { groupByTimeOfDay, todayDateString } from "../db/logic";
 import { loadDayStatus } from "../db/selectors";
-import { TaskWithStatus } from "../types";
+import { TaskWithStatus, TimeOfDay } from "../types";
 import { formatTimeLabel } from "../utils/time";
+
+const TIME_OF_DAY_LABELS: Record<TimeOfDay, string> = {
+  morning: "Morning",
+  afternoon: "Afternoon",
+  evening: "Evening",
+  anytime: "Anytime",
+};
+
+interface TaskSection {
+  key: string;
+  title: string;
+  data: TaskWithStatus[];
+  /** Unscheduled tasks are shown for reference but can't be toggled. */
+  interactive: boolean;
+}
 
 export default function HomeScreen() {
   const navigation = useNavigation<any>();
@@ -71,17 +86,41 @@ export default function HomeScreen() {
     navigation.navigate("TaskForm", { taskId: task.id });
   };
 
-  const scheduledTasks = tasks.filter((t) => t.scheduledToday);
-  const otherTasks = tasks.filter((t) => !t.scheduledToday);
+  const sections = useMemo<TaskSection[]>(() => {
+    const result: TaskSection[] = groupByTimeOfDay(
+      tasks.filter((t) => t.scheduledToday)
+    ).map((group) => ({
+      key: group.timeOfDay,
+      title: TIME_OF_DAY_LABELS[group.timeOfDay],
+      data: group.tasks,
+      interactive: true,
+    }));
+
+    const unscheduled = tasks.filter((t) => !t.scheduledToday);
+    if (unscheduled.length > 0) {
+      result.push({
+        key: "unscheduled",
+        title: "Not scheduled today",
+        data: unscheduled,
+        interactive: false,
+      });
+    }
+    return result;
+  }, [tasks]);
 
   return (
     <View style={styles.container}>
       <View style={styles.budgetCard}>
         <View style={styles.budgetCardHeader}>
           <Text style={styles.budgetLabel}>Today's energy budget</Text>
-          <Pressable onPress={() => navigation.navigate("Stats")} hitSlop={8}>
-            <Text style={styles.trendsLink}>Trends →</Text>
-          </Pressable>
+          <View style={styles.headerLinks}>
+            <Pressable onPress={() => navigation.navigate("Stats")} hitSlop={8}>
+              <Text style={styles.trendsLink}>Trends →</Text>
+            </Pressable>
+            <Pressable onPress={() => navigation.navigate("Settings")} hitSlop={8}>
+              <Text style={styles.settingsLink}>⚙</Text>
+            </Pressable>
+          </View>
         </View>
         <View style={styles.budgetRow}>
           <TextInput
@@ -99,35 +138,26 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <FlatList
-        data={scheduledTasks}
+      <SectionList
+        sections={sections}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.listContent}
-        ListHeaderComponent={
-          scheduledTasks.length === 0 ? (
-            <Text style={styles.emptyText}>
-              No tasks scheduled for today yet. Add one below.
-            </Text>
-          ) : null
+        stickySectionHeadersEnabled={false}
+        ListEmptyComponent={
+          <Text style={styles.emptyText}>
+            No tasks scheduled for today yet. Add one below.
+          </Text>
         }
-        ListFooterComponent={
-          otherTasks.length > 0 ? (
-            <View>
-              <Text style={styles.sectionHeader}>Not scheduled today</Text>
-              {otherTasks.map((task) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  onToggle={toggleComplete}
-                  onEdit={editTask}
-                  disabled
-                />
-              ))}
-            </View>
-          ) : null
-        }
-        renderItem={({ item }) => (
-          <TaskRow task={item} onToggle={toggleComplete} onEdit={editTask} />
+        renderSectionHeader={({ section }) => (
+          <Text style={styles.sectionHeader}>{section.title}</Text>
+        )}
+        renderItem={({ item, section }) => (
+          <TaskRow
+            task={item}
+            onToggle={toggleComplete}
+            onEdit={editTask}
+            disabled={!section.interactive}
+          />
         )}
       />
 
@@ -160,8 +190,9 @@ function TaskRow({
         task.completedToday && styles.taskRowDone,
         blocked && styles.taskRowBlocked,
       ]}
-      disabled={disabled}
-      onPress={() => onToggle(task)}
+      // Dropping onPress rather than setting `disabled` keeps the nested edit
+      // button tappable — `disabled` on a Touchable can swallow child touches.
+      onPress={disabled ? undefined : () => onToggle(task)}
     >
       <View style={{ flex: 1 }}>
         <Text style={styles.taskName}>{task.name}</Text>
@@ -202,7 +233,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   budgetLabel: { fontSize: 14, color: "#6b5c52" },
+  headerLinks: { flexDirection: "row", alignItems: "center", gap: 14 },
   trendsLink: { fontSize: 13, color: "#4a3f38", fontWeight: "600" },
+  settingsLink: { fontSize: 16, color: "#4a3f38" },
   budgetRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   budgetInput: {
     borderWidth: 1,

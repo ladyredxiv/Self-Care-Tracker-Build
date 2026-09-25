@@ -4,7 +4,7 @@
  * that feed these functions live in selectors.ts.
  */
 
-import { DayOfWeek, Task, TaskWithStatus } from "../types";
+import { DayOfWeek, Task, TaskWithStatus, TimeOfDay } from "../types";
 import { addDays, dayOfWeekFor, parseDateString, toDateString } from "../utils/date";
 
 /** Safety bound so a malformed daysOfWeek array can't spin the streak walk forever. */
@@ -121,6 +121,31 @@ export function buildDayStatus(input: DayStatusInput): DayStatus {
     }));
 
   return { tasks: [...scheduled, ...unscheduled], budget, spent, remaining };
+}
+
+/** Display order for time-of-day groups; "anytime" trails as the catch-all. */
+export const TIME_OF_DAY_ORDER: TimeOfDay[] = ["morning", "afternoon", "evening", "anytime"];
+
+export interface TimeOfDayGroup<T> {
+  timeOfDay: TimeOfDay;
+  tasks: T[];
+}
+
+/**
+ * Buckets tasks into time-of-day groups, dropping empty ones.
+ *
+ * Input order is preserved within each group, which matters: buildDayStatus hands
+ * tasks over sorted cheapest-first, and that ordering is what its greedy
+ * `fitsRemainingBudget` pass was based on. Grouping is presentation only — it must
+ * not reorder tasks in a way that contradicts which ones were said to fit.
+ */
+export function groupByTimeOfDay<T extends { timeOfDay: TimeOfDay }>(
+  tasks: T[]
+): TimeOfDayGroup<T>[] {
+  return TIME_OF_DAY_ORDER.map((timeOfDay) => ({
+    timeOfDay,
+    tasks: tasks.filter((task) => task.timeOfDay === timeOfDay),
+  })).filter((group) => group.tasks.length > 0);
 }
 
 export interface DayUsage {

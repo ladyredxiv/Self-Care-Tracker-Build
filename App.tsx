@@ -11,6 +11,7 @@ import {
 import HomeScreen from "./src/screens/HomeScreen";
 import TaskFormScreen from "./src/screens/TaskFormScreen";
 import StatsScreen from "./src/screens/StatsScreen";
+import SettingsScreen from "./src/screens/SettingsScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -44,6 +45,7 @@ export default function App() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="Stats" component={StatsScreen} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen
           name="TaskForm"
           component={TaskFormScreen}

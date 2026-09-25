@@ -1,5 +1,5 @@
 import * as SQLite from "expo-sqlite";
-import { DailyBudget, DayOfWeek, Task, TimeOfDay } from "../types";
+import { DatabaseSnapshot, DayOfWeek, Task, TimeOfDay } from "../types";
 
 const db = SQLite.openDatabaseSync("selfcare.db");
 
@@ -259,4 +259,69 @@ export function setSetting(key: string, value: string) {
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
     [key, value]
   );
+}
+
+// ---- Backup / restore ----
+
+export function exportSnapshot(): DatabaseSnapshot {
+  return {
+    tasks: db.getAllSync<any>(`SELECT * FROM tasks ORDER BY id`),
+    completions: db.getAllSync<any>(`SELECT * FROM completions ORDER BY id`),
+    dailyBudgets: db.getAllSync<any>(`SELECT * FROM daily_budgets ORDER BY date`),
+    settings: db.getAllSync<any>(`SELECT * FROM settings ORDER BY key`),
+  };
+}
+
+/**
+ * Replaces all local data with a snapshot, in a single transaction so a malformed
+ * backup can't leave the database half-wiped.
+ *
+ * Completions are inserted with OR IGNORE: a backup taken before the uniqueness
+ * index existed may itself contain duplicate (taskId, date) rows, and those must
+ * not abort the whole restore.
+ */
+export function restoreSnapshot(snapshot: DatabaseSnapshot) {
+  db.withTransactionSync(() => {
+    db.runSync(`DELETE FROM completions`);
+    db.runSync(`DELETE FROM tasks`);
+    db.runSync(`DELETE FROM daily_budgets`);
+    db.runSync(`DELETE FROM settings`);
+
+    for (const t of snapshot.tasks) {
+      db.runSync(
+        `INSERT INTO tasks (id, name, energyCost, category, timeOfDay, daysOfWeek, isRecurring, reminderEnabled, reminderTime, createdAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          t.id,
+          t.name,
+          t.energyCost,
+          t.category ?? "general",
+          t.timeOfDay ?? "anytime",
+          typeof t.daysOfWeek === "string" ? t.daysOfWeek : JSON.stringify(t.daysOfWeek ?? []),
+          t.isRecurring ? 1 : 0,
+          t.reminderEnabled ? 1 : 0,
+          t.reminderTime ?? null,
+          t.createdAt ?? new Date().toISOString(),
+        ]
+      );
+    }
+
+    for (const c of snapshot.completions) {
+      db.runSync(
+        `INSERT OR IGNORE INTO completions (taskId, date, completedAt) VALUES (?, ?, ?)`,
+        [c.taskId, c.date, c.completedAt ?? new Date().toISOString()]
+      );
+    }
+
+    for (const b of snapshot.dailyBudgets) {
+      db.runSync(`INSERT OR REPLACE INTO daily_budgets (date, budget) VALUES (?, ?)`, [
+        b.date,
+        b.budget,
+      ]);
+    }
+
+    for (const s of snapshot.settings) {
+      db.runSync(`INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`, [s.key, s.value]);
+    }
+  });
 }

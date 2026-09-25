@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { DayOfWeek, Task } from "../types";
-import { buildDayStatus, buildUsageTrend, computeStreak, isScheduledOn } from "./logic";
+import {
+  buildDayStatus,
+  buildUsageTrend,
+  computeStreak,
+  groupByTimeOfDay,
+  isScheduledOn,
+} from "./logic";
 
 function makeTask(overrides: Partial<Task> & { id: number }): Task {
   return {
@@ -180,6 +186,65 @@ describe("buildDayStatus", () => {
       completedDatesByTask: new Map([[1, new Set(["2026-09-25", "2026-09-24"])]]),
     });
     assert.equal(status.tasks[0].streak, 2);
+  });
+});
+
+describe("groupByTimeOfDay", () => {
+  it("orders groups morning, afternoon, evening, then anytime", () => {
+    const tasks = [
+      { id: 1, timeOfDay: "anytime" as const },
+      { id: 2, timeOfDay: "evening" as const },
+      { id: 3, timeOfDay: "morning" as const },
+      { id: 4, timeOfDay: "afternoon" as const },
+    ];
+    assert.deepEqual(
+      groupByTimeOfDay(tasks).map((g) => g.timeOfDay),
+      ["morning", "afternoon", "evening", "anytime"]
+    );
+  });
+
+  it("omits empty groups", () => {
+    const tasks = [{ id: 1, timeOfDay: "evening" as const }];
+    assert.deepEqual(
+      groupByTimeOfDay(tasks).map((g) => g.timeOfDay),
+      ["evening"]
+    );
+  });
+
+  it("preserves input order within a group so greedy budget order survives", () => {
+    const tasks = [
+      { id: 1, timeOfDay: "morning" as const },
+      { id: 2, timeOfDay: "evening" as const },
+      { id: 3, timeOfDay: "morning" as const },
+    ];
+    const morning = groupByTimeOfDay(tasks).find((g) => g.timeOfDay === "morning");
+    assert.deepEqual(morning?.tasks.map((t) => t.id), [1, 3]);
+  });
+
+  it("returns nothing for no tasks", () => {
+    assert.deepEqual(groupByTimeOfDay([]), []);
+  });
+
+  it("keeps every task when grouping a full day", () => {
+    const tasks = [
+      makeTask({ id: 1, energyCost: 1, timeOfDay: "evening" }),
+      makeTask({ id: 2, energyCost: 2, timeOfDay: "morning" }),
+      makeTask({ id: 3, energyCost: 3, timeOfDay: "morning" }),
+    ];
+    const status = buildDayStatus({
+      tasks,
+      date: FRIDAY,
+      budget: 10,
+      completedTaskIds: new Set(),
+      completedDatesByTask: new Map(),
+    });
+    const grouped = groupByTimeOfDay(status.tasks);
+    assert.equal(grouped.flatMap((g) => g.tasks).length, 3);
+    // cheapest-first ordering from buildDayStatus survives inside the group
+    assert.deepEqual(
+      grouped.find((g) => g.timeOfDay === "morning")?.tasks.map((t) => t.id),
+      [2, 3]
+    );
   });
 });
 

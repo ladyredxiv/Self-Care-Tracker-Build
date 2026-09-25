@@ -7,6 +7,13 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "backgroundColor": "#fdfaf6",
+    "updates": {
+      "url": "https://u.expo.dev/eb350992-6872-453c-ab99-cebff1635d42",
+      "fallbackToCacheTimeout": 0
+    },
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
     "ios": {
       "supportsTablet": true
     },
