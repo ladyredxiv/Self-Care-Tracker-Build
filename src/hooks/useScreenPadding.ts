@@ -11,7 +11,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 export function useScreenPadding() {
   const insets = useSafeAreaInsets();
   return {
-    paddingTop: Math.max(insets.top + 20, 40),
+    // insets.top already clears the status bar; the extra 20 on top of it left a
+    // visible band of empty cream before the first card on a tall phone.
+    paddingTop: Math.max(insets.top + 6, 24),
     paddingBottom: Math.max(insets.bottom, 12),
     insets,
   };

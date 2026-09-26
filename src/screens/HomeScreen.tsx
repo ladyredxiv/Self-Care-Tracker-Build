@@ -18,8 +18,7 @@ import {
   setSetting,
   uncompleteTask,
 } from "../db/database";
-import BuildBadge from "../components/BuildBadge";
-import CapacityCheckIn from "../components/CapacityCheckIn";
+import CapacityCard from "../components/CapacityCard";
 import DayReflection from "../components/DayReflection";
 import StartHere from "../components/StartHere";
 import { groupByTimeOfDay, partialSpoons, pickStartHere, todayDateString } from "../db/logic";
@@ -33,7 +32,7 @@ import { getDayLog, setDayReflection } from "../db/database";
 import { useScreenPadding } from "../hooks/useScreenPadding";
 import { clearReminderForCompletion, syncRemindersForTask } from "../reminders";
 import { refreshStatusNotification } from "../statusRefresh";
-import { Palette, useThemedStyles } from "../theme";
+import { Palette, useTheme, useThemedStyles } from "../theme";
 import { DayLog, DayRating, ProgressStyle, TaskWithStatus, TimeOfDay } from "../types";
 import { formatTimeLabel } from "../utils/time";
 
@@ -202,50 +201,25 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop }]}>
-      <View style={styles.budgetCard}>
-        <View style={styles.budgetCardHeader}>
-          <Text style={styles.budgetLabel}>Today's energy budget</Text>
-          <View style={styles.headerLinks}>
-            <Pressable onPress={() => navigation.navigate("Stats")} hitSlop={8}>
-              <Text style={styles.trendsLink}>Trends →</Text>
-            </Pressable>
-            <Pressable onPress={() => navigation.navigate("Settings")} hitSlop={8}>
-              <Text style={styles.settingsLink}>⚙</Text>
-            </Pressable>
-          </View>
-        </View>
-        <View style={styles.budgetRow}>
-          <TextInput
-            style={styles.budgetInput}
-            keyboardType="number-pad"
-            value={budgetInput}
-            onChangeText={setBudgetInput}
-            onEndEditing={saveBudget}
-          />
-          <Text style={[styles.budgetRemaining, remaining < 0 && styles.budgetOver]}>
-            {remaining < 0
-              ? `${spent} / ${budget} · ${-remaining} over`
-              : `${remaining} / ${budget} remaining`}
-          </Text>
-        </View>
-      </View>
-
-      {showCheckIn && (
-        <CapacityCheckIn
-          baseline={budget}
-          sleepHours={sleepHours}
-          onChoose={chooseCapacity}
-          onDismiss={() => setCheckInHidden(true)}
-        />
-      )}
+      <CapacityCard
+        budget={budget}
+        spent={spent}
+        needsCheckIn={showCheckIn}
+        sleepHours={sleepHours}
+        budgetInput={budgetInput}
+        onBudgetInputChange={setBudgetInput}
+        onBudgetCommit={saveBudget}
+        onChoose={chooseCapacity}
+        onDismiss={() => setCheckInHidden(true)}
+        onOpenTrends={() => navigation.navigate("Stats")}
+        onOpenSettings={() => navigation.navigate("Settings")}
+      />
 
       {showReflection && (
         <DayReflection rating={dayLog?.rating ?? null} onRate={rateDay} />
       )}
 
       {!showCheckIn && <StartHere tasks={startHere} onComplete={(t) => complete(t)} />}
-
-      <BuildBadge />
 
       <SectionList
         sections={sections}
@@ -295,8 +269,17 @@ export default function HomeScreen() {
  */
 function describeProgress(task: TaskWithStatus, style: ProgressStyle): string {
   if (style === "hidden") return "";
-  if (style === "streak") return task.streak > 0 ? ` · 🔥 ${task.streak}` : "";
+  if (style === "streak") return task.streak > 0 ? ` · ${task.streak} in a row` : "";
   return task.recentCompletions > 0 ? ` · ${task.recentCompletions}× in 30d` : "";
+}
+
+/**
+ * Cost, phrased by direction. Category is deliberately dropped from the row: it
+ * was a fifth competing fact on a 13px line and is almost always "general".
+ */
+function describeCost(task: TaskWithStatus): string {
+  if (task.energyCost < 0) return `Gives back ${-task.energyCost}`;
+  return `${task.energyCost} ${task.energyCost === 1 ? "spoon" : "spoons"}`;
 }
 
 function describeSchedule(task: TaskWithStatus): string {
@@ -328,14 +311,19 @@ function TaskRow({
   progressStyle: ProgressStyle;
 }) {
   const styles = useThemedStyles(createStyles);
+  const { palette } = useTheme();
   const blocked = !task.completedToday && !task.fitsRemainingBudget;
   return (
     <TouchableOpacity
       style={[
         styles.taskRow,
+        task.energyCost < 0 && styles.taskRowRestorative,
         task.completedToday && styles.taskRowDone,
         blocked && styles.taskRowBlocked,
       ]}
+      accessibilityRole="button"
+      accessibilityLabel={`${task.name}, ${describeCost(task)}`}
+      accessibilityState={{ checked: task.completedToday, disabled: !!disabled }}
       // Dropping onPress rather than setting `disabled` keeps the nested edit
       // button tappable — `disabled` on a Touchable can swallow child touches.
       onPress={disabled ? undefined : () => onToggle(task)}
@@ -376,7 +364,11 @@ function TaskRow({
         style={styles.editButton}
         onPress={() => onEdit(task)}
       >
-        <Text style={styles.editButtonText}>✎</Text>
+        <View style={styles.editDots}>
+          <View style={styles.editDot} />
+          <View style={styles.editDot} />
+          <View style={styles.editDot} />
+        </View>
       </Pressable>
     </TouchableOpacity>
   );
@@ -418,16 +410,30 @@ const createStyles = (palette: Palette) =>
   budgetOver: { color: palette.warning },
   listContent: { paddingHorizontal: 16, paddingBottom: 100 },
   emptyText: { color: palette.textMuted, textAlign: "center", marginTop: 24 },
-  sectionHeader: { marginTop: 16, marginBottom: 8, color: palette.textMuted, fontSize: 13 },
+  sectionHeader: {
+    marginTop: 14,
+    marginBottom: 6,
+    color: palette.textMuted,
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
   taskRow: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 14,
+    paddingVertical: 11,
+    paddingLeft: 14,
+    paddingRight: 6,
     borderRadius: 12,
     backgroundColor: palette.surface,
-    marginBottom: 8,
+    marginBottom: 6,
     borderWidth: 1,
     borderColor: palette.borderSubtle,
+  },
+  taskRowRestorative: {
+    backgroundColor: palette.highlightSoft,
+    borderColor: palette.highlightSoft,
   },
   taskRowDone: { backgroundColor: palette.doneSurface, borderColor: palette.doneBorder },
   taskRowBlocked: { opacity: 0.45 },
@@ -436,9 +442,11 @@ const createStyles = (palette: Palette) =>
   blockedTag: { fontSize: 12, color: palette.warning },
   // Muted rather than alarming: waiting time is a sorting signal, not a telling-off.
   waitingTag: { fontSize: 12, color: palette.textMuted, marginRight: 8 },
-  essentialTag: { fontSize: 12, fontWeight: "400", color: palette.warning },
+  essentialTag: { fontSize: 12, fontWeight: "400", color: palette.highlight },
   doneTag: { fontSize: 12, color: palette.doneText, fontWeight: "600" },
-  editButton: { paddingLeft: 12, paddingVertical: 4 },
+  editButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  editDots: { gap: 3 },
+  editDot: { width: 3.5, height: 3.5, borderRadius: 2, backgroundColor: palette.icon },
   editButtonText: { fontSize: 16, color: palette.icon },
   addButton: {
     position: "absolute",

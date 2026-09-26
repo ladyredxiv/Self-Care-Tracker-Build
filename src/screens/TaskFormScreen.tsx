@@ -177,7 +177,12 @@ export default function TaskFormScreen() {
 
       <View style={styles.reminderRow}>
         <Text style={styles.label}>Gives energy back</Text>
-        <Switch value={isRestorative} onValueChange={setIsRestorative} />
+        <Switch
+          value={isRestorative}
+          onValueChange={setIsRestorative}
+          trackColor={{ false: palette.spoonEmpty, true: palette.highlight }}
+          thumbColor={palette.surface}
+        />
       </View>
       {isRestorative && (
         <Text style={styles.hint}>
@@ -188,7 +193,12 @@ export default function TaskFormScreen() {
 
       <View style={styles.reminderRow}>
         <Text style={styles.label}>Essential</Text>
-        <Switch value={isEssential} onValueChange={setIsEssential} />
+        <Switch
+          value={isEssential}
+          onValueChange={setIsEssential}
+          trackColor={{ false: palette.spoonEmpty, true: palette.highlight }}
+          thumbColor={palette.surface}
+        />
       </View>
       {isEssential && (
         <Text style={styles.hint}>
@@ -281,7 +291,12 @@ export default function TaskFormScreen() {
 
       <View style={styles.reminderRow}>
         <Text style={styles.label}>Remind me</Text>
-        <Switch value={reminderEnabled} onValueChange={toggleReminder} />
+        <Switch
+          value={reminderEnabled}
+          onValueChange={toggleReminder}
+          trackColor={{ false: palette.spoonEmpty, true: palette.highlight }}
+          thumbColor={palette.surface}
+        />
       </View>
 
       {reminderEnabled && (

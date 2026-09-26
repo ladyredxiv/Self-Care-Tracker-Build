@@ -37,7 +37,7 @@ const APPEARANCE_OPTIONS: { value: ThemePreference; label: string }[] = [
 export default function SettingsScreen() {
   const navigation = useNavigation<any>();
   const styles = useThemedStyles(createStyles);
-  const { preference, setPreference } = useTheme();
+  const { palette, preference, setPreference } = useTheme();
   const { paddingTop, paddingBottom } = useScreenPadding();
   const [busy, setBusy] = useState<"export" | "import" | "update" | "summary" | null>(null);
   const [progress, setProgress] = useState<ProgressStyle>(getProgressStyle);
@@ -184,7 +184,12 @@ export default function SettingsScreen() {
 
       <View style={styles.reminderRow}>
         <Text style={styles.sectionLabel}>Keep spoons in the notification shade</Text>
-        <Switch value={statusEnabled} onValueChange={toggleStatus} />
+        <Switch
+          value={statusEnabled}
+          onValueChange={toggleStatus}
+          trackColor={{ false: palette.spoonEmpty, true: palette.highlight }}
+          thumbColor={palette.surface}
+        />
       </View>
       <Text style={styles.sectionBody}>
         A silent, always-there notification showing what's left and what to start

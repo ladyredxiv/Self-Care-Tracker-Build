@@ -32,6 +32,17 @@ export interface Palette {
   /** Filled buttons and selected chips. */
   accent: HexColor;
   onAccent: HexColor;
+  /**
+   * Sage accent, for the one thing on screen that should draw the eye: spoons
+   * remaining, essentials, restorative tasks. The base palette sits within a few
+   * percent of the same warm value, which is calm but means nothing *can* be
+   * emphasised — this is the only hue allowed to break that.
+   */
+  highlight: HexColor;
+  /** Tinted background for highlighted rows. */
+  highlightSoft: HexColor;
+  /** Unfilled spoon marks — spent, not missing. */
+  spoonEmpty: HexColor;
   doneSurface: HexColor;
   doneBorder: HexColor;
   doneText: HexColor;
@@ -57,6 +68,9 @@ export const lightPalette: Palette = {
   textMuted: "#8a7b70",
   accent: "#4a3f38",
   onAccent: "#ffffff",
+  highlight: "#4f7d55",
+  highlightSoft: "#e8f1e8",
+  spoonEmpty: "#e0d4c7",
   doneSurface: "#e7f3e8",
   doneBorder: "#cfe6d2",
   doneText: "#3c7a3f",
@@ -86,6 +100,9 @@ export const darkPalette: Palette = {
   textMuted: "#9c8d80",
   accent: "#e9ddd0",
   onAccent: "#2a231d",
+  highlight: "#8fc79a",
+  highlightSoft: "#233026",
+  spoonEmpty: "#40372f",
   doneSurface: "#233027",
   doneBorder: "#364a3a",
   doneText: "#93c698",
