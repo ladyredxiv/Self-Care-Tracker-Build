@@ -3,13 +3,41 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { useNavigation } from "@react-navigation/native";
 
 import { applyBackup, exportBackup, pickBackup } from "../backup";
+import { describeBundle } from "../components/BuildBadge";
 import { getAllTasks } from "../db/database";
 import { rescheduleAllReminders } from "../notifications";
+import { applyUpdate, checkAndFetchUpdate } from "../updates";
 import { BackupFile } from "../utils/backupFormat";
 
 export default function SettingsScreen() {
   const navigation = useNavigation<any>();
-  const [busy, setBusy] = useState<"export" | "import" | null>(null);
+  const [busy, setBusy] = useState<"export" | "import" | "update" | null>(null);
+
+  const handleCheckForUpdates = async () => {
+    setBusy("update");
+    const result = await checkAndFetchUpdate();
+    setBusy(null);
+
+    switch (result.status) {
+      case "unsupported":
+        Alert.alert(
+          "Not available here",
+          "Over-the-air updates only work in an installed build, not in Expo Go or over the dev server."
+        );
+        return;
+      case "none":
+        Alert.alert("Up to date", "You're already running the latest published update.");
+        return;
+      case "error":
+        Alert.alert("Couldn't check for updates", result.error);
+        return;
+      case "ready":
+        Alert.alert("Update ready", "Restart now to apply it?", [
+          { text: "Later", style: "cancel" },
+          { text: "Restart", onPress: () => void applyUpdate() },
+        ]);
+    }
+  };
 
   const handleExport = async () => {
     setBusy("export");
@@ -104,6 +132,23 @@ export default function SettingsScreen() {
       <Text style={styles.caution}>
         Restoring replaces all tasks, completions and budgets currently on this device.
       </Text>
+
+      <View style={styles.divider} />
+
+      <Text style={styles.sectionLabel}>App updates</Text>
+      <Text style={styles.sectionBody}>
+        Currently running: {describeBundle()}
+      </Text>
+
+      <Pressable
+        style={[styles.buttonSecondary, busy !== null && styles.buttonDisabled]}
+        disabled={busy !== null}
+        onPress={handleCheckForUpdates}
+      >
+        <Text style={styles.buttonSecondaryText}>
+          {busy === "update" ? "Checking…" : "Check for updates"}
+        </Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -140,4 +185,9 @@ const styles = StyleSheet.create({
   buttonSecondaryText: { color: "#4a3f38", fontWeight: "600", fontSize: 16 },
   buttonDisabled: { opacity: 0.5 },
   caution: { fontSize: 12, color: "#a15c3c", marginTop: 16, lineHeight: 18 },
+  divider: {
+    height: 1,
+    backgroundColor: "#eee2d8",
+    marginVertical: 28,
+  },
 });
