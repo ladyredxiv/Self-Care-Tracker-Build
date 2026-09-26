@@ -16,6 +16,7 @@ import { createTask, deleteTask, getTaskById, updateTask } from "../db/database"
 import { cancelTaskReminders, requestNotificationPermissions } from "../notifications";
 import { syncRemindersForTask } from "../reminders";
 import { useScreenPadding } from "../hooks/useScreenPadding";
+import { Palette, useTheme, useThemedStyles } from "../theme";
 import { DayOfWeek, TimeOfDay } from "../types";
 import { timeStringToDate, dateToTimeString, formatTimeLabel } from "../utils/time";
 
@@ -33,6 +34,8 @@ const DAY_LABELS: { label: string; value: DayOfWeek }[] = [
 export default function TaskFormScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
+  const styles = useThemedStyles(createStyles);
+  const { palette } = useTheme();
   const { paddingTop, paddingBottom } = useScreenPadding();
   const taskId: number | undefined = route.params?.taskId;
   const isEditing = taskId !== undefined;
@@ -133,6 +136,7 @@ export default function TaskFormScreen() {
         value={name}
         onChangeText={setName}
         placeholder="e.g. 10 min walk"
+        placeholderTextColor={palette.textMuted}
       />
 
       <Text style={styles.label}>Energy cost</Text>
@@ -142,6 +146,7 @@ export default function TaskFormScreen() {
         onChangeText={setEnergyCost}
         keyboardType="number-pad"
         placeholder="e.g. 3"
+        placeholderTextColor={palette.textMuted}
       />
 
       <Text style={styles.label}>Category</Text>
@@ -150,6 +155,7 @@ export default function TaskFormScreen() {
         value={category}
         onChangeText={setCategory}
         placeholder="e.g. movement, rest, social"
+        placeholderTextColor={palette.textMuted}
       />
 
       <Text style={styles.label}>Preferred time of day</Text>
@@ -238,32 +244,34 @@ export default function TaskFormScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fdfaf6" },
-  title: { fontSize: 22, fontWeight: "700", color: "#3c332d", marginBottom: 20 },
-  label: { fontSize: 14, color: "#6b5c52", marginTop: 16, marginBottom: 6 },
+const createStyles = (palette: Palette) =>
+  StyleSheet.create({
+  container: { flex: 1, backgroundColor: palette.background },
+  title: { fontSize: 22, fontWeight: "700", color: palette.textPrimary, marginBottom: 20 },
+  label: { fontSize: 14, color: palette.textSecondary, marginTop: 16, marginBottom: 6 },
   input: {
     borderWidth: 1,
-    borderColor: "#d9c7ba",
+    borderColor: palette.border,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
     fontSize: 16,
-    backgroundColor: "white",
+    backgroundColor: palette.surface,
+    color: palette.textPrimary,
   },
-  hint: { fontSize: 13, color: "#8a7b70", lineHeight: 19 },
+  hint: { fontSize: 13, color: palette.textMuted, lineHeight: 19 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "white",
+    backgroundColor: palette.surface,
     borderWidth: 1,
-    borderColor: "#d9c7ba",
+    borderColor: palette.border,
   },
-  chipSelected: { backgroundColor: "#4a3f38", borderColor: "#4a3f38" },
-  chipText: { color: "#4a3f38", fontSize: 13 },
-  chipTextSelected: { color: "white" },
+  chipSelected: { backgroundColor: palette.accent, borderColor: palette.accent },
+  chipText: { color: palette.textPrimary, fontSize: 13 },
+  chipTextSelected: { color: palette.onAccent },
   reminderRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -273,26 +281,26 @@ const styles = StyleSheet.create({
   timeButton: {
     marginTop: 12,
     borderWidth: 1,
-    borderColor: "#d9c7ba",
+    borderColor: palette.border,
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    backgroundColor: "white",
+    backgroundColor: palette.surface,
     alignSelf: "flex-start",
   },
-  timeButtonText: { fontSize: 16, color: "#3c332d" },
+  timeButtonText: { fontSize: 16, color: palette.textPrimary },
   saveButton: {
     marginTop: 32,
-    backgroundColor: "#4a3f38",
+    backgroundColor: palette.accent,
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: "center",
   },
-  saveButtonText: { color: "white", fontWeight: "600", fontSize: 16 },
+  saveButtonText: { color: palette.onAccent, fontWeight: "600", fontSize: 16 },
   deleteButton: {
     marginTop: 12,
     paddingVertical: 16,
     alignItems: "center",
   },
-  deleteButtonText: { color: "#a1443c", fontWeight: "600", fontSize: 15 },
-});
+  deleteButtonText: { color: palette.danger, fontWeight: "600", fontSize: 15 },
+  });

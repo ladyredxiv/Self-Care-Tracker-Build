@@ -6,11 +6,20 @@ import { applyBackup, exportBackup, pickBackup } from "../backup";
 import { describeBundle } from "../components/BuildBadge";
 import { useScreenPadding } from "../hooks/useScreenPadding";
 import { syncAllReminders } from "../reminders";
+import { Palette, ThemePreference, useTheme, useThemedStyles } from "../theme";
 import { applyUpdate, checkAndFetchUpdate } from "../updates";
 import { BackupFile } from "../utils/backupFormat";
 
+const APPEARANCE_OPTIONS: { value: ThemePreference; label: string }[] = [
+  { value: "system", label: "System" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+];
+
 export default function SettingsScreen() {
   const navigation = useNavigation<any>();
+  const styles = useThemedStyles(createStyles);
+  const { preference, setPreference } = useTheme();
   const { paddingTop, paddingBottom } = useScreenPadding();
   const [busy, setBusy] = useState<"export" | "import" | "update" | null>(null);
 
@@ -107,6 +116,26 @@ export default function SettingsScreen() {
         <View style={{ width: 50 }} />
       </View>
 
+      <Text style={styles.sectionLabel}>Appearance</Text>
+      <View style={styles.chipRow}>
+        {APPEARANCE_OPTIONS.map((option) => {
+          const selected = preference === option.value;
+          return (
+            <Pressable
+              key={option.value}
+              style={[styles.chip, selected && styles.chipSelected]}
+              onPress={() => setPreference(option.value)}
+            >
+              <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={styles.divider} />
+
       <Text style={styles.sectionLabel}>Your data</Text>
       <Text style={styles.sectionBody}>
         Everything lives only on this device. Saving a backup somewhere else means a lost
@@ -157,8 +186,9 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fdfaf6" },
+const createStyles = (palette: Palette) =>
+  StyleSheet.create({
+  container: { flex: 1, backgroundColor: palette.background },
   content: { padding: 20 },
   header: {
     flexDirection: "row",
@@ -166,32 +196,44 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 28,
   },
-  backButton: { fontSize: 16, color: "#4a3f38", width: 50 },
-  title: { fontSize: 18, fontWeight: "700", color: "#3c332d" },
-  sectionLabel: { fontSize: 14, color: "#6b5c52", marginBottom: 6 },
-  sectionBody: { fontSize: 14, color: "#8a7b70", lineHeight: 20, marginBottom: 20 },
+  backButton: { fontSize: 16, color: palette.textPrimary, width: 50 },
+  title: { fontSize: 18, fontWeight: "700", color: palette.textPrimary },
+  sectionLabel: { fontSize: 14, color: palette.textSecondary, marginBottom: 6 },
+  sectionBody: { fontSize: 14, color: palette.textMuted, lineHeight: 20, marginBottom: 20 },
   button: {
-    backgroundColor: "#4a3f38",
+    backgroundColor: palette.accent,
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: "center",
   },
-  buttonText: { color: "white", fontWeight: "600", fontSize: 16 },
+  buttonText: { color: palette.onAccent, fontWeight: "600", fontSize: 16 },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  chip: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 20,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  chipSelected: { backgroundColor: palette.accent, borderColor: palette.accent },
+  chipText: { color: palette.textPrimary, fontSize: 13 },
+  chipTextSelected: { color: palette.onAccent },
   buttonSecondary: {
     marginTop: 12,
     borderRadius: 14,
     paddingVertical: 16,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#d9c7ba",
-    backgroundColor: "white",
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
   },
-  buttonSecondaryText: { color: "#4a3f38", fontWeight: "600", fontSize: 16 },
+  buttonSecondaryText: { color: palette.textPrimary, fontWeight: "600", fontSize: 16 },
   buttonDisabled: { opacity: 0.5 },
-  caution: { fontSize: 12, color: "#a15c3c", marginTop: 16, lineHeight: 18 },
+  caution: { fontSize: 12, color: palette.warning, marginTop: 16, lineHeight: 18 },
   divider: {
     height: 1,
-    backgroundColor: "#eee2d8",
+    backgroundColor: palette.borderSubtle,
     marginVertical: 28,
   },
-});
+  });

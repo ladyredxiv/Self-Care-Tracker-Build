@@ -15,6 +15,7 @@ import HomeScreen from "./src/screens/HomeScreen";
 import TaskFormScreen from "./src/screens/TaskFormScreen";
 import StatsScreen from "./src/screens/StatsScreen";
 import SettingsScreen from "./src/screens/SettingsScreen";
+import { ThemeProvider, useTheme } from "./src/theme";
 
 const Stack = createNativeStackNavigator();
 
@@ -47,20 +48,39 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="Home" component={HomeScreen} />
-          <Stack.Screen name="Stats" component={StatsScreen} />
-          <Stack.Screen name="Settings" component={SettingsScreen} />
-          <Stack.Screen
-            name="TaskForm"
-            component={TaskFormScreen}
-            options={{ presentation: "modal" }}
-          />
-        </Stack.Navigator>
-        <StatusBar style="auto" />
-      </NavigationContainer>
+      <ThemeProvider>
+        <ThemedNavigation />
+      </ThemeProvider>
     </SafeAreaProvider>
+  );
+}
+
+/**
+ * Separate component so it sits inside ThemeProvider and can colour the navigator
+ * and status bar — otherwise a white flash shows between screens in dark mode.
+ */
+function ThemedNavigation() {
+  const { palette, isDark } = useTheme();
+
+  return (
+    <NavigationContainer>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: palette.background },
+        }}
+      >
+        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="Stats" component={StatsScreen} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen
+          name="TaskForm"
+          component={TaskFormScreen}
+          options={{ presentation: "modal" }}
+        />
+      </Stack.Navigator>
+      <StatusBar style={isDark ? "light" : "dark"} />
+    </NavigationContainer>
   );
 }
 

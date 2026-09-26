@@ -1,6 +1,8 @@
 import * as Updates from "expo-updates";
 import { StyleSheet, Text, View } from "react-native";
 
+import { Palette, useThemedStyles } from "../theme";
+
 /**
  * Shows which JS bundle is actually running.
  *
@@ -13,6 +15,7 @@ import { StyleSheet, Text, View } from "react-native";
  * hence the fallbacks.
  */
 export default function BuildBadge() {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.badge}>
       <Text style={styles.text}>{describeBundle()}</Text>
@@ -44,16 +47,17 @@ export function describeBundle(): string {
   }
 }
 
-const styles = StyleSheet.create({
-  badge: {
-    alignSelf: "center",
-    marginBottom: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: "#ece3f5",
-    borderWidth: 1,
-    borderColor: "#d5c6e6",
-  },
-  text: { fontSize: 11, color: "#5d4d70", letterSpacing: 0.3 },
-});
+const createStyles = (palette: Palette) =>
+  StyleSheet.create({
+    badge: {
+      alignSelf: "center",
+      marginBottom: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+      borderRadius: 999,
+      backgroundColor: palette.badgeSurface,
+      borderWidth: 1,
+      borderColor: palette.badgeBorder,
+    },
+    text: { fontSize: 11, color: palette.badgeText, letterSpacing: 0.3 },
+  });
