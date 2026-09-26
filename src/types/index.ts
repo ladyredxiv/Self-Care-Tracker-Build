@@ -42,6 +42,24 @@ export interface DailyBudget {
   budget: number;
 }
 
+/** How many spoons the day was rated as having gone, 1 (rough) to 5 (great). */
+export type DayRating = 1 | 2 | 3 | 4 | 5;
+
+/**
+ * What the user said about a day, as opposed to what they did in it.
+ *
+ * Kept separate from completions and budgets because it records outcome rather
+ * than activity — whether the pacing actually worked, which is the only thing that
+ * makes overspend patterns interpretable.
+ */
+export interface DayLog {
+  date: string; // YYYY-MM-DD
+  /** Whether capacity was confirmed for the day, vs. silently inherited. */
+  checkedIn: boolean;
+  rating: DayRating | null;
+  note: string | null;
+}
+
 /**
  * Raw table contents for a backup. Rows stay in their on-disk shape (daysOfWeek as
  * a JSON string, booleans as 0/1) so a restore is a straight reinsert.
@@ -51,6 +69,8 @@ export interface DatabaseSnapshot {
   completions: any[];
   dailyBudgets: any[];
   settings: any[];
+  /** Optional: absent from backups written before day logs existed. */
+  dayLogs?: any[];
 }
 
 export interface TaskWithStatus extends Task {

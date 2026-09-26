@@ -1,5 +1,13 @@
 import * as SQLite from "expo-sqlite";
-import { DatabaseSnapshot, DayOfWeek, ScheduleType, Task, TimeOfDay } from "../types";
+import {
+  DatabaseSnapshot,
+  DayLog,
+  DayOfWeek,
+  DayRating,
+  ScheduleType,
+  Task,
+  TimeOfDay,
+} from "../types";
 
 const db = SQLite.openDatabaseSync("selfcare.db");
 
@@ -38,6 +46,14 @@ export function initDatabase() {
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY NOT NULL,
       value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS day_logs (
+      date TEXT PRIMARY KEY NOT NULL,
+      checkedIn INTEGER NOT NULL DEFAULT 0,
+      rating INTEGER,
+      note TEXT,
+      updatedAt TEXT NOT NULL
     );
   `);
 
@@ -288,6 +304,53 @@ export function getEnergySpentByDate(startDate: string, endDate: string): Record
   return result;
 }
 
+// ---- Day logs (capacity check-in and end-of-day reflection) ----
+
+export function getDayLog(date: string): DayLog | null {
+  const row = db.getFirstSync<any>(`SELECT * FROM day_logs WHERE date = ?`, [date]);
+  return row ? rowToDayLog(row) : null;
+}
+
+export function getDayLogsBetween(startDate: string, endDate: string): DayLog[] {
+  const rows = db.getAllSync<any>(
+    `SELECT * FROM day_logs WHERE date BETWEEN ? AND ? ORDER BY date`,
+    [startDate, endDate]
+  );
+  return rows.map(rowToDayLog);
+}
+
+/** Records that capacity for the day was actively confirmed rather than inherited. */
+export function markCheckedIn(date: string) {
+  db.runSync(
+    `INSERT INTO day_logs (date, checkedIn, updatedAt) VALUES (?, 1, ?)
+     ON CONFLICT(date) DO UPDATE SET checkedIn = 1, updatedAt = excluded.updatedAt`,
+    [date, new Date().toISOString()]
+  );
+}
+
+export function setDayReflection(date: string, rating: DayRating | null, note: string | null) {
+  db.runSync(
+    `INSERT INTO day_logs (date, rating, note, updatedAt) VALUES (?, ?, ?, ?)
+     ON CONFLICT(date) DO UPDATE SET
+       rating = excluded.rating,
+       note = excluded.note,
+       updatedAt = excluded.updatedAt`,
+    [date, rating, note, new Date().toISOString()]
+  );
+}
+
+function rowToDayLog(row: any): DayLog {
+  const rating = typeof row.rating === "number" && row.rating >= 1 && row.rating <= 5
+    ? (row.rating as DayRating)
+    : null;
+  return {
+    date: row.date,
+    checkedIn: !!row.checkedIn,
+    rating,
+    note: row.note ?? null,
+  };
+}
+
 // ---- Settings (e.g. default budget) ----
 
 export function getSetting(key: string): string | null {
@@ -311,6 +374,7 @@ export function exportSnapshot(): DatabaseSnapshot {
     completions: db.getAllSync<any>(`SELECT * FROM completions ORDER BY id`),
     dailyBudgets: db.getAllSync<any>(`SELECT * FROM daily_budgets ORDER BY date`),
     settings: db.getAllSync<any>(`SELECT * FROM settings ORDER BY key`),
+    dayLogs: db.getAllSync<any>(`SELECT * FROM day_logs ORDER BY date`),
   };
 }
 
@@ -328,6 +392,7 @@ export function restoreSnapshot(snapshot: DatabaseSnapshot) {
     db.runSync(`DELETE FROM tasks`);
     db.runSync(`DELETE FROM daily_budgets`);
     db.runSync(`DELETE FROM settings`);
+    db.runSync(`DELETE FROM day_logs`);
 
     for (const t of snapshot.tasks) {
       const daysOfWeek =
@@ -379,6 +444,20 @@ export function restoreSnapshot(snapshot: DatabaseSnapshot) {
 
     for (const s of snapshot.settings) {
       db.runSync(`INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)`, [s.key, s.value]);
+    }
+
+    // Absent from backups written before day logs existed, hence the guard.
+    for (const log of snapshot.dayLogs ?? []) {
+      db.runSync(
+        `INSERT OR REPLACE INTO day_logs (date, checkedIn, rating, note, updatedAt) VALUES (?, ?, ?, ?, ?)`,
+        [
+          log.date,
+          log.checkedIn ? 1 : 0,
+          typeof log.rating === "number" ? log.rating : null,
+          log.note ?? null,
+          log.updatedAt ?? new Date().toISOString(),
+        ]
+      );
     }
   });
 }

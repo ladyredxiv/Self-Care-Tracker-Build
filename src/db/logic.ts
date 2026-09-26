@@ -253,6 +253,47 @@ export function buildDayStatus(input: DayStatusInput): DayStatus {
   return { tasks: [...scheduled, ...upcoming], budget, spent, remaining };
 }
 
+export interface CapacityOption {
+  key: string;
+  label: string;
+  spoons: number;
+}
+
+/**
+ * The one-tap capacity choices for the morning check-in.
+ *
+ * Expressed relative to the user's own usual budget rather than as fixed numbers,
+ * because a spoon isn't a unit that means anything across people — "a rough day"
+ * is only definable against your own baseline.
+ *
+ * Values are forced strictly increasing so a small baseline can't produce two
+ * buttons that do the same thing.
+ */
+export function capacityOptions(baseline: number): CapacityOption[] {
+  const steps = [
+    { key: "rough", label: "Rough", factor: 0.4 },
+    { key: "low", label: "Low", factor: 0.7 },
+    { key: "usual", label: "Usual", factor: 1 },
+    { key: "good", label: "Good", factor: 1.3 },
+  ];
+
+  const safeBaseline = Math.max(1, Math.round(baseline));
+  let previous = 0;
+  return steps.map((step) => {
+    const spoons = Math.max(previous + 1, Math.round(safeBaseline * step.factor));
+    previous = spoons;
+    return { key: step.key, label: step.label, spoons };
+  });
+}
+
+export const DAY_RATING_LABELS: Record<number, string> = {
+  1: "Rough",
+  2: "Hard",
+  3: "Okay",
+  4: "Good",
+  5: "Great",
+};
+
 export interface PlannedReminder {
   /** Local date the reminder belongs to, "YYYY-MM-DD". */
   date: string;

@@ -18,12 +18,15 @@ import {
   uncompleteTask,
 } from "../db/database";
 import BuildBadge from "../components/BuildBadge";
+import CapacityCheckIn from "../components/CapacityCheckIn";
+import DayReflection from "../components/DayReflection";
 import { groupByTimeOfDay, todayDateString } from "../db/logic";
-import { loadDayStatus } from "../db/selectors";
+import { confirmCapacity, loadDayStatus } from "../db/selectors";
+import { getDayLog, setDayReflection } from "../db/database";
 import { useScreenPadding } from "../hooks/useScreenPadding";
 import { clearReminderForCompletion, syncRemindersForTask } from "../reminders";
 import { Palette, useThemedStyles } from "../theme";
-import { TaskWithStatus, TimeOfDay } from "../types";
+import { DayLog, DayRating, TaskWithStatus, TimeOfDay } from "../types";
 import { formatTimeLabel } from "../utils/time";
 
 const TIME_OF_DAY_LABELS: Record<TimeOfDay, string> = {
@@ -52,6 +55,10 @@ export default function HomeScreen() {
   const [spent, setSpent] = useState(0);
   const [remaining, setRemaining] = useState(0);
   const [tasks, setTasks] = useState<TaskWithStatus[]>([]);
+  const [dayLog, setDayLog] = useState<DayLog | null>(null);
+  // Dismissing the check-in should last the session without being recorded as a
+  // deliberate answer, so it lives in state rather than the database.
+  const [checkInHidden, setCheckInHidden] = useState(false);
 
   const load = useCallback(() => {
     const status = loadDayStatus(today);
@@ -60,6 +67,7 @@ export default function HomeScreen() {
     setSpent(status.spent);
     setRemaining(status.remaining);
     setTasks(status.tasks);
+    setDayLog(getDayLog(today));
   }, [today, refreshKey]);
 
   useFocusEffect(
@@ -109,6 +117,24 @@ export default function HomeScreen() {
   const editTask = (task: TaskWithStatus) => {
     navigation.navigate("TaskForm", { taskId: task.id });
   };
+
+  const chooseCapacity = (spoons: number) => {
+    confirmCapacity(today, spoons);
+    load();
+  };
+
+  const rateDay = (rating: DayRating) => {
+    setDayReflection(today, rating, dayLog?.note ?? null);
+    load();
+  };
+
+  const showCheckIn = !checkInHidden && dayLog?.checkedIn !== true;
+  // Only worth asking once the day is mostly over; before then there's nothing to
+  // reflect on. Already-rated days keep the card so the answer can be changed.
+  const showReflection =
+    !showCheckIn && (dayLog?.rating !== null && dayLog?.rating !== undefined
+      ? true
+      : new Date().getHours() >= 18);
 
   const sections = useMemo<TaskSection[]>(() => {
     const result: TaskSection[] = groupByTimeOfDay(
@@ -161,6 +187,18 @@ export default function HomeScreen() {
           </Text>
         </View>
       </View>
+
+      {showCheckIn && (
+        <CapacityCheckIn
+          baseline={budget}
+          onChoose={chooseCapacity}
+          onDismiss={() => setCheckInHidden(true)}
+        />
+      )}
+
+      {showReflection && (
+        <DayReflection rating={dayLog?.rating ?? null} onRate={rateDay} />
+      )}
 
       <BuildBadge />
 

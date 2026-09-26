@@ -12,7 +12,10 @@ import {
   getCompletionsForDate,
   getEnergySpentByDate,
   getSetting,
+  markCheckedIn,
   materializeBudgetForDate,
+  setBudgetForDate,
+  setSetting,
 } from "./database";
 import { buildDayStatus, buildUsageTrend, DayStatus, DayUsage } from "./logic";
 
@@ -23,6 +26,17 @@ export function getDefaultBudget(): number {
   const raw = getSetting(DEFAULT_BUDGET_KEY);
   const parsed = raw !== null ? parseInt(raw, 10) : NaN;
   return Number.isNaN(parsed) ? FALLBACK_BUDGET : parsed;
+}
+
+/**
+ * Sets the day's capacity from the check-in and records that it was actively
+ * chosen, so the prompt doesn't reappear. Also updates the default so tomorrow
+ * starts from today's answer rather than from a number set weeks ago.
+ */
+export function confirmCapacity(date: string, spoons: number) {
+  setBudgetForDate(date, spoons);
+  setSetting(DEFAULT_BUDGET_KEY, String(spoons));
+  markCheckedIn(date);
 }
 
 export function loadDayStatus(date: string): DayStatus {

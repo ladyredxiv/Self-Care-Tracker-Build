@@ -5,6 +5,7 @@ import { DayOfWeek, ScheduleType, Task } from "../types";
 import {
   buildDayStatus,
   buildUsageTrend,
+  capacityOptions,
   computeStreak,
   groupByTimeOfDay,
   dueInfoFor,
@@ -62,6 +63,39 @@ describe("isDueOn", () => {
   it("treats a one-off as due until it is done", () => {
     const once = { scheduleType: "once" as ScheduleType, daysOfWeek: MON_WED_FRI, intervalDays: null, createdAt: CREATED };
     assert.equal(isDueOn(once, none, SATURDAY), true);
+  });
+});
+
+describe("capacityOptions", () => {
+  it("scales the choices to the user's own baseline", () => {
+    assert.deepEqual(
+      capacityOptions(10).map((o) => o.spoons),
+      [4, 7, 10, 13]
+    );
+  });
+
+  it("keeps choices strictly increasing on a small baseline", () => {
+    // Naive rounding would give 1, 1, 2, 3 — two buttons doing the same thing.
+    assert.deepEqual(
+      capacityOptions(2).map((o) => o.spoons),
+      [1, 2, 3, 4]
+    );
+  });
+
+  it("never offers zero spoons", () => {
+    for (const baseline of [0, 1, -5]) {
+      assert.ok(
+        capacityOptions(baseline).every((o) => o.spoons >= 1),
+        `baseline ${baseline} produced a zero option`
+      );
+    }
+  });
+
+  it("always offers four labelled choices", () => {
+    assert.deepEqual(
+      capacityOptions(8).map((o) => o.label),
+      ["Rough", "Low", "Usual", "Good"]
+    );
   });
 });
 
