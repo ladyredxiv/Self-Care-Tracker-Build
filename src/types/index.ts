@@ -16,6 +16,9 @@ export type TimeOfDay = "morning" | "afternoon" | "evening" | "anytime";
  */
 export type ScheduleType = "daily" | "weekdays" | "interval" | "once";
 
+/** How per-task progress is shown. "recent" is the default because it doesn't punish crashes. */
+export type ProgressStyle = "recent" | "streak" | "hidden";
+
 export interface Task {
   id: number;
   name: string;
@@ -84,6 +87,8 @@ export interface TaskWithStatus extends Task {
   fitsRemainingBudget: boolean;
   scheduledToday: boolean;
   streak: number;
+  /** Completions within the recent window, for the non-punishing progress measure. */
+  recentCompletions: number;
   /**
    * Days elapsed since an interval task became due — 0 if due today, or for any
    * other schedule type. Drives both display and budget priority.

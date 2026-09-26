@@ -6,9 +6,20 @@ import { applyBackup, exportBackup, pickBackup } from "../backup";
 import { describeBundle, describeRuntime } from "../components/BuildBadge";
 import { useScreenPadding } from "../hooks/useScreenPadding";
 import { syncAllReminders } from "../reminders";
+import { shareSummary } from "../report";
+import { getProgressStyle, setProgressStyle } from "../db/selectors";
 import { Palette, ThemePreference, useTheme, useThemedStyles } from "../theme";
+import { ProgressStyle } from "../types";
 import { applyUpdate, checkAndFetchUpdate } from "../updates";
 import { BackupFile } from "../utils/backupFormat";
+
+const PROGRESS_OPTIONS: { value: ProgressStyle; label: string }[] = [
+  { value: "recent", label: "Recent count" },
+  { value: "streak", label: "Streak" },
+  { value: "hidden", label: "Neither" },
+];
+
+const SUMMARY_RANGES = [30, 90];
 
 const APPEARANCE_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: "system", label: "System" },
@@ -21,7 +32,20 @@ export default function SettingsScreen() {
   const styles = useThemedStyles(createStyles);
   const { preference, setPreference } = useTheme();
   const { paddingTop, paddingBottom } = useScreenPadding();
-  const [busy, setBusy] = useState<"export" | "import" | "update" | null>(null);
+  const [busy, setBusy] = useState<"export" | "import" | "update" | "summary" | null>(null);
+  const [progress, setProgress] = useState<ProgressStyle>(getProgressStyle);
+
+  const chooseProgress = (style: ProgressStyle) => {
+    setProgressStyle(style);
+    setProgress(style);
+  };
+
+  const handleShareSummary = async (days: number) => {
+    setBusy("summary");
+    const result = await shareSummary(days);
+    setBusy(null);
+    if (!result.ok) Alert.alert("Couldn't create the summary", result.error);
+  };
 
   const handleCheckForUpdates = async () => {
     setBusy("update");
@@ -121,6 +145,52 @@ export default function SettingsScreen() {
         <Text style={styles.title}>Settings</Text>
         <View style={{ width: 50 }} />
       </View>
+
+      <Text style={styles.sectionLabel}>Showing progress</Text>
+      <Text style={styles.sectionBody}>
+        A streak resets to zero after a bad couple of days. A count over the last 30
+        days keeps the credit for what you did manage.
+      </Text>
+      <View style={styles.chipRow}>
+        {PROGRESS_OPTIONS.map((option) => {
+          const selected = progress === option.value;
+          return (
+            <Pressable
+              key={option.value}
+              style={[styles.chip, selected && styles.chipSelected]}
+              onPress={() => chooseProgress(option.value)}
+            >
+              <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={styles.divider} />
+
+      <Text style={styles.sectionLabel}>Summary for an appointment</Text>
+      <Text style={styles.sectionBody}>
+        A plain-text log of your capacity, what you spent, how days went, and whether
+        overspending was followed by worse days.
+      </Text>
+      <View style={styles.chipRow}>
+        {SUMMARY_RANGES.map((days) => (
+          <Pressable
+            key={days}
+            style={[styles.chip, busy !== null && styles.buttonDisabled]}
+            disabled={busy !== null}
+            onPress={() => handleShareSummary(days)}
+          >
+            <Text style={styles.chipText}>
+              {busy === "summary" ? "Preparing…" : `Last ${days} days`}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <View style={styles.divider} />
 
       <Text style={styles.sectionLabel}>Appearance</Text>
       <View style={styles.chipRow}>

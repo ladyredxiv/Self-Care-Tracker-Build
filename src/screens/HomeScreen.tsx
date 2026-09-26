@@ -21,12 +21,12 @@ import BuildBadge from "../components/BuildBadge";
 import CapacityCheckIn from "../components/CapacityCheckIn";
 import DayReflection from "../components/DayReflection";
 import { groupByTimeOfDay, todayDateString } from "../db/logic";
-import { confirmCapacity, loadDayStatus } from "../db/selectors";
+import { confirmCapacity, getProgressStyle, loadDayStatus } from "../db/selectors";
 import { getDayLog, setDayReflection } from "../db/database";
 import { useScreenPadding } from "../hooks/useScreenPadding";
 import { clearReminderForCompletion, syncRemindersForTask } from "../reminders";
 import { Palette, useThemedStyles } from "../theme";
-import { DayLog, DayRating, TaskWithStatus, TimeOfDay } from "../types";
+import { DayLog, DayRating, ProgressStyle, TaskWithStatus, TimeOfDay } from "../types";
 import { formatTimeLabel } from "../utils/time";
 
 const TIME_OF_DAY_LABELS: Record<TimeOfDay, string> = {
@@ -59,6 +59,7 @@ export default function HomeScreen() {
   // Dismissing the check-in should last the session without being recorded as a
   // deliberate answer, so it lives in state rather than the database.
   const [checkInHidden, setCheckInHidden] = useState(false);
+  const [progressStyle, setProgressStyleState] = useState<ProgressStyle>("recent");
 
   const load = useCallback(() => {
     const status = loadDayStatus(today);
@@ -68,6 +69,7 @@ export default function HomeScreen() {
     setRemaining(status.remaining);
     setTasks(status.tasks);
     setDayLog(getDayLog(today));
+    setProgressStyleState(getProgressStyle());
   }, [today, refreshKey]);
 
   useFocusEffect(
@@ -221,6 +223,7 @@ export default function HomeScreen() {
             onToggle={toggleComplete}
             onEdit={editTask}
             disabled={!section.interactive}
+            progressStyle={progressStyle}
           />
         )}
       />
@@ -240,6 +243,18 @@ export default function HomeScreen() {
  * verdict — "every 2 days" reads as information, where "overdue" reads as
  * an accusation, and this is an app for people who are already short on slack.
  */
+/**
+ * Per-task progress, in whichever form the user picked.
+ *
+ * "recent" is the default: a streak reads as zero after a two-day crash, which
+ * punishes precisely the thing this app is built to accommodate.
+ */
+function describeProgress(task: TaskWithStatus, style: ProgressStyle): string {
+  if (style === "hidden") return "";
+  if (style === "streak") return task.streak > 0 ? ` · 🔥 ${task.streak}` : "";
+  return task.recentCompletions > 0 ? ` · ${task.recentCompletions}× in 30d` : "";
+}
+
 function describeSchedule(task: TaskWithStatus): string {
   switch (task.scheduleType) {
     case "interval":
@@ -258,11 +273,13 @@ function TaskRow({
   onToggle,
   onEdit,
   disabled,
+  progressStyle,
 }: {
   task: TaskWithStatus;
   onToggle: (t: TaskWithStatus) => void;
   onEdit: (t: TaskWithStatus) => void;
   disabled?: boolean;
+  progressStyle: ProgressStyle;
 }) {
   const styles = useThemedStyles(createStyles);
   const blocked = !task.completedToday && !task.fitsRemainingBudget;
@@ -288,7 +305,7 @@ function TaskRow({
             ? `+${-task.energyCost} back`
             : `${task.energyCost} energy`} · {task.category}
           {describeSchedule(task)}
-          {task.streak > 0 ? ` · 🔥 ${task.streak}` : ""}
+          {describeProgress(task, progressStyle)}
           {task.reminderEnabled && task.reminderTime
             ? ` · ⏰ ${formatTimeLabel(task.reminderTime)}`
             : ""}

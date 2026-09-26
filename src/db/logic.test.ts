@@ -18,6 +18,7 @@ import {
   isRetiredOneOff,
   lastCompletionBefore,
   plannedReminders,
+  recentCompletionCount,
 } from "./logic";
 
 function makeTask(overrides: Partial<Task> & { id: number }): Task {
@@ -158,6 +159,35 @@ describe("analysePayback", () => {
     const insight = analysePayback([]);
     assert.equal(insight.overallAvgRating, null);
     assert.equal(insight.hasEnoughData, false);
+  });
+});
+
+describe("recentCompletionCount", () => {
+  it("counts completions inside the window", () => {
+    const dates = new Set(["2026-09-25", "2026-09-20", "2026-09-10"]);
+    assert.equal(recentCompletionCount(dates, FRIDAY, 30), 3);
+  });
+
+  it("excludes completions older than the window", () => {
+    const dates = new Set(["2026-09-25", "2026-08-01"]);
+    assert.equal(recentCompletionCount(dates, FRIDAY, 30), 1);
+  });
+
+  it("includes both ends of the window", () => {
+    // A 7-day window ending Friday the 25th starts Saturday the 19th.
+    const dates = new Set(["2026-09-19", "2026-09-25", "2026-09-18"]);
+    assert.equal(recentCompletionCount(dates, FRIDAY, 7), 2);
+  });
+
+  it("ignores dates in the future", () => {
+    assert.equal(recentCompletionCount(new Set(["2026-10-05"]), FRIDAY, 30), 0);
+  });
+
+  it("survives a two-day gap that would zero a streak", () => {
+    // The whole point of offering this instead of a streak.
+    const dates = new Set(["2026-09-25", "2026-09-24", "2026-09-21", "2026-09-20"]);
+    assert.equal(recentCompletionCount(dates, FRIDAY, 30), 4);
+    assert.equal(computeStreak(dates, EVERY_DAY, FRIDAY), 2);
   });
 });
 

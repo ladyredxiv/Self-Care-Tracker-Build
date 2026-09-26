@@ -12,6 +12,7 @@ import {
 const db = SQLite.openDatabaseSync("selfcare.db");
 
 export const DEFAULT_BUDGET_KEY = "defaultBudget";
+export const PROGRESS_STYLE_KEY = "progressStyle";
 
 export function initDatabase() {
   db.execSync(`
@@ -354,6 +355,18 @@ function rowToDayLog(row: any): DayLog {
     rating,
     note: row.note ?? null,
   };
+}
+
+/** Completions per task over a date range, for the summary report. */
+export function getCompletionCountsByTask(
+  startDate: string,
+  endDate: string
+): { taskId: number; completions: number }[] {
+  return db.getAllSync<any>(
+    `SELECT taskId, COUNT(*) as completions
+     FROM completions WHERE date BETWEEN ? AND ? GROUP BY taskId`,
+    [startDate, endDate]
+  );
 }
 
 /** Energy spent per task category over a date range, for the load breakdown. */

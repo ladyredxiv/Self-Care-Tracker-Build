@@ -158,6 +158,30 @@ export function computeStreak(
   return streak;
 }
 
+/** Window used for the gentler "N of last N days" progress measure. */
+export const RECENT_WINDOW_DAYS = 30;
+
+/**
+ * Completions inside the recent window.
+ *
+ * Offered as an alternative to streaks because a streak punishes exactly the thing
+ * this app exists to accommodate: crash for two days through no fault of your own
+ * and a month of progress reads as zero. A count over a window is both gentler and
+ * a more honest description of a fluctuating condition.
+ */
+export function recentCompletionCount(
+  completedDates: ReadonlySet<string>,
+  today: string,
+  windowDays: number = RECENT_WINDOW_DAYS
+): number {
+  const earliest = shiftDateString(today, -(windowDays - 1));
+  let count = 0;
+  for (const date of completedDates) {
+    if (date >= earliest && date <= today) count++;
+  }
+  return count;
+}
+
 export interface DayStatusInput {
   tasks: Task[];
   date: string;
@@ -244,6 +268,7 @@ export function buildDayStatus(input: DayStatusInput): DayStatus {
         fitsRemainingBudget,
         scheduledToday: true,
         streak: streakFor(task),
+        recentCompletions: recentCompletionCount(completedDatesFor(task), date),
         daysWaiting: due.daysWaiting,
       };
     });
@@ -256,6 +281,7 @@ export function buildDayStatus(input: DayStatusInput): DayStatus {
       fitsRemainingBudget: false,
       scheduledToday: false,
       streak: streakFor(task),
+      recentCompletions: recentCompletionCount(completedDatesFor(task), date),
       daysWaiting: due.daysWaiting,
     }));
 
