@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 
 import { applyBackup, exportBackup, pickBackup } from "../backup";
@@ -7,7 +7,13 @@ import { describeBundle, describeRuntime } from "../components/BuildBadge";
 import { useScreenPadding } from "../hooks/useScreenPadding";
 import { syncAllReminders } from "../reminders";
 import { shareSummary } from "../report";
-import { getProgressStyle, setProgressStyle } from "../db/selectors";
+import {
+  getProgressStyle,
+  isStatusNotificationEnabled,
+  setProgressStyle,
+  setStatusNotificationEnabled,
+} from "../db/selectors";
+import { refreshStatusNotification } from "../statusRefresh";
 import { Palette, ThemePreference, useTheme, useThemedStyles } from "../theme";
 import { ProgressStyle } from "../types";
 import { applyUpdate, checkAndFetchUpdate } from "../updates";
@@ -34,6 +40,13 @@ export default function SettingsScreen() {
   const { paddingTop, paddingBottom } = useScreenPadding();
   const [busy, setBusy] = useState<"export" | "import" | "update" | "summary" | null>(null);
   const [progress, setProgress] = useState<ProgressStyle>(getProgressStyle);
+  const [statusEnabled, setStatusEnabled] = useState(isStatusNotificationEnabled);
+
+  const toggleStatus = (enabled: boolean) => {
+    setStatusNotificationEnabled(enabled);
+    setStatusEnabled(enabled);
+    void refreshStatusNotification();
+  };
 
   const chooseProgress = (style: ProgressStyle) => {
     setProgressStyle(style);
@@ -145,6 +158,17 @@ export default function SettingsScreen() {
         <Text style={styles.title}>Settings</Text>
         <View style={{ width: 50 }} />
       </View>
+
+      <View style={styles.reminderRow}>
+        <Text style={styles.sectionLabel}>Keep spoons in the notification shade</Text>
+        <Switch value={statusEnabled} onValueChange={toggleStatus} />
+      </View>
+      <Text style={styles.sectionBody}>
+        A silent, always-there notification showing what's left and what to start
+        with, so you can check without opening the app.
+      </Text>
+
+      <View style={styles.divider} />
 
       <Text style={styles.sectionLabel}>Showing progress</Text>
       <Text style={styles.sectionBody}>
@@ -274,7 +298,8 @@ const createStyles = (palette: Palette) =>
   },
   backButton: { fontSize: 16, color: palette.textPrimary, width: 50 },
   title: { fontSize: 18, fontWeight: "700", color: palette.textPrimary },
-  sectionLabel: { fontSize: 14, color: palette.textSecondary, marginBottom: 6 },
+  sectionLabel: { fontSize: 14, color: palette.textSecondary, marginBottom: 6, flex: 1 },
+  reminderRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   sectionBody: { fontSize: 14, color: palette.textMuted, lineHeight: 20, marginBottom: 20 },
   button: {
     backgroundColor: palette.accent,

@@ -5,12 +5,18 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { completeTask, initDatabase } from "./src/db/database";
+import { todayDateString } from "./src/db/logic";
 import {
   COMPLETE_ACTION_ID,
   requestNotificationPermissions,
   setupNotifications,
 } from "./src/notifications";
 import { syncAllReminders, syncRemindersForTask } from "./src/reminders";
+import { refreshStatusNotification } from "./src/statusRefresh";
+import {
+  setupStatusNotification,
+  STATUS_COMPLETE_ACTION_ID,
+} from "./src/statusNotification";
 import HomeScreen from "./src/screens/HomeScreen";
 import TaskFormScreen from "./src/screens/TaskFormScreen";
 import StatsScreen from "./src/screens/StatsScreen";
@@ -32,9 +38,11 @@ export default function App() {
     (async () => {
       try {
         await setupNotifications();
+        await setupStatusNotification();
         const granted = await requestNotificationPermissions();
         if (granted) {
           await syncAllReminders();
+          await refreshStatusNotification();
         }
       } catch (err) {
         console.warn("Notification setup failed:", err);
@@ -105,14 +113,27 @@ function useNotificationActions(ready: boolean) {
     if (handled.current === key) return;
     handled.current = key;
 
-    if (response.actionIdentifier !== COMPLETE_ACTION_ID) return;
+    const data = request.content.data as
+      | { taskId?: unknown; date?: unknown; statusTaskId?: unknown }
+      | null;
 
-    const data = request.content.data as { taskId?: unknown; date?: unknown } | null;
+    if (response.actionIdentifier === STATUS_COMPLETE_ACTION_ID) {
+      // The ongoing readout always refers to today, unlike a reminder that may have
+      // been sitting since yesterday.
+      if (typeof data?.statusTaskId !== "number") return;
+      completeTask(data.statusTaskId, todayDateString());
+      void syncRemindersForTask(data.statusTaskId);
+      void refreshStatusNotification();
+      return;
+    }
+
+    if (response.actionIdentifier !== COMPLETE_ACTION_ID) return;
     if (typeof data?.taskId !== "number" || typeof data?.date !== "string") return;
 
     // Completes the day the reminder was *for*, which may not be today if the
     // notification sat unattended.
     completeTask(data.taskId, data.date);
     void syncRemindersForTask(data.taskId);
+    void refreshStatusNotification();
   }, [ready, response]);
 }

@@ -27,6 +27,7 @@ import { confirmCapacity, getProgressStyle, loadDayStatus } from "../db/selector
 import { getDayLog, setDayReflection } from "../db/database";
 import { useScreenPadding } from "../hooks/useScreenPadding";
 import { clearReminderForCompletion, syncRemindersForTask } from "../reminders";
+import { refreshStatusNotification } from "../statusRefresh";
 import { Palette, useThemedStyles } from "../theme";
 import { DayLog, DayRating, ProgressStyle, TaskWithStatus, TimeOfDay } from "../types";
 import { formatTimeLabel } from "../utils/time";
@@ -72,6 +73,8 @@ export default function HomeScreen() {
     setTasks(status.tasks);
     setDayLog(getDayLog(today));
     setProgressStyleState(getProgressStyle());
+    // Fire-and-forget: the ongoing readout should track whatever just changed.
+    void refreshStatusNotification();
   }, [today, refreshKey]);
 
   useFocusEffect(

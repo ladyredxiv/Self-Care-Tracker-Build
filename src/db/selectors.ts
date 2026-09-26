@@ -22,6 +22,7 @@ import {
   markCheckedIn,
   materializeBudgetForDate,
   PROGRESS_STYLE_KEY,
+  STATUS_NOTIFICATION_KEY,
   setBudgetForDate,
   setSetting,
 } from "./database";
@@ -77,6 +78,14 @@ export function getProgressStyle(): ProgressStyle {
 
 export function setProgressStyle(style: ProgressStyle) {
   setSetting(PROGRESS_STYLE_KEY, style);
+}
+
+export function isStatusNotificationEnabled(): boolean {
+  return getSetting(STATUS_NOTIFICATION_KEY) === "on";
+}
+
+export function setStatusNotificationEnabled(enabled: boolean) {
+  setSetting(STATUS_NOTIFICATION_KEY, enabled ? "on" : "off");
 }
 
 export interface Insights {
