@@ -8,35 +8,42 @@ export const THEME_PREFERENCE_KEY = "themePreference";
 export type ThemePreference = "system" | "light" | "dark";
 
 /**
+ * Hex literal. Typed this narrowly because the home-screen widget's style props
+ * demand it, and a plain `string` there fails to compile — which is a useful
+ * guarantee that every token really is a colour.
+ */
+export type HexColor = `#${string}`;
+
+/**
  * Semantic colour tokens. Screens reference roles rather than hex values so a
  * second palette doesn't require auditing every style block.
  */
 export interface Palette {
-  background: string;
+  background: HexColor;
   /** Rows and inputs. */
-  surface: string;
+  surface: HexColor;
   /** Raised panels like the budget card. */
-  surfaceAlt: string;
-  border: string;
-  borderSubtle: string;
-  textPrimary: string;
-  textSecondary: string;
-  textMuted: string;
+  surfaceAlt: HexColor;
+  border: HexColor;
+  borderSubtle: HexColor;
+  textPrimary: HexColor;
+  textSecondary: HexColor;
+  textMuted: HexColor;
   /** Filled buttons and selected chips. */
-  accent: string;
-  onAccent: string;
-  doneSurface: string;
-  doneBorder: string;
-  doneText: string;
-  warning: string;
-  danger: string;
-  icon: string;
-  chartBudget: string;
-  chartSpent: string;
-  chartOver: string;
-  badgeSurface: string;
-  badgeBorder: string;
-  badgeText: string;
+  accent: HexColor;
+  onAccent: HexColor;
+  doneSurface: HexColor;
+  doneBorder: HexColor;
+  doneText: HexColor;
+  warning: HexColor;
+  danger: HexColor;
+  icon: HexColor;
+  chartBudget: HexColor;
+  chartSpent: HexColor;
+  chartOver: HexColor;
+  badgeSurface: HexColor;
+  badgeBorder: HexColor;
+  badgeText: HexColor;
 }
 
 export const lightPalette: Palette = {
