@@ -4,12 +4,14 @@ import { useNavigation } from "@react-navigation/native";
 
 import { applyBackup, exportBackup, pickBackup } from "../backup";
 import { describeBundle } from "../components/BuildBadge";
+import { useScreenPadding } from "../hooks/useScreenPadding";
 import { syncAllReminders } from "../reminders";
 import { applyUpdate, checkAndFetchUpdate } from "../updates";
 import { BackupFile } from "../utils/backupFormat";
 
 export default function SettingsScreen() {
   const navigation = useNavigation<any>();
+  const { paddingTop, paddingBottom } = useScreenPadding();
   const [busy, setBusy] = useState<"export" | "import" | "update" | null>(null);
 
   const handleCheckForUpdates = async () => {
@@ -93,7 +95,10 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingTop, paddingBottom: paddingBottom + 20 }]}
+    >
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
           <Text style={styles.backButton}>‹ Back</Text>
@@ -154,7 +159,7 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fdfaf6" },
-  content: { padding: 20, paddingTop: 60 },
+  content: { padding: 20 },
   header: {
     flexDirection: "row",
     alignItems: "center",

@@ -15,6 +15,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { createTask, deleteTask, getTaskById, updateTask } from "../db/database";
 import { cancelTaskReminders, requestNotificationPermissions } from "../notifications";
 import { syncRemindersForTask } from "../reminders";
+import { useScreenPadding } from "../hooks/useScreenPadding";
 import { DayOfWeek, TimeOfDay } from "../types";
 import { timeStringToDate, dateToTimeString, formatTimeLabel } from "../utils/time";
 
@@ -32,6 +33,7 @@ const DAY_LABELS: { label: string; value: DayOfWeek }[] = [
 export default function TaskFormScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
+  const { paddingTop, paddingBottom } = useScreenPadding();
   const taskId: number | undefined = route.params?.taskId;
   const isEditing = taskId !== undefined;
 
@@ -115,7 +117,10 @@ export default function TaskFormScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 20, paddingTop: 60 }}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ padding: 20, paddingTop, paddingBottom: paddingBottom + 20 }}
+    >
       <Text style={styles.title}>{isEditing ? "Edit self-care task" : "New self-care task"}</Text>
 
       <Text style={styles.label}>Name</Text>

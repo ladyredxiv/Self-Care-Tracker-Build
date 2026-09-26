@@ -20,6 +20,7 @@ import {
 import BuildBadge from "../components/BuildBadge";
 import { groupByTimeOfDay, todayDateString } from "../db/logic";
 import { loadDayStatus } from "../db/selectors";
+import { useScreenPadding } from "../hooks/useScreenPadding";
 import { clearReminderForCompletion, syncRemindersForTask } from "../reminders";
 import { TaskWithStatus, TimeOfDay } from "../types";
 import { formatTimeLabel } from "../utils/time";
@@ -41,6 +42,7 @@ interface TaskSection {
 
 export default function HomeScreen() {
   const navigation = useNavigation<any>();
+  const { paddingTop, paddingBottom } = useScreenPadding();
   const [today, setToday] = useState(todayDateString);
   const [refreshKey, setRefreshKey] = useState(0);
   const [budget, setBudget] = useState(0);
@@ -129,7 +131,7 @@ export default function HomeScreen() {
   }, [tasks]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop }]}>
       <View style={styles.budgetCard}>
         <View style={styles.budgetCardHeader}>
           <Text style={styles.budgetLabel}>Today's energy budget</Text>
@@ -163,7 +165,7 @@ export default function HomeScreen() {
       <SectionList
         sections={sections}
         keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: 100 + paddingBottom }]}
         stickySectionHeadersEnabled={false}
         ListEmptyComponent={
           <Text style={styles.emptyText}>
@@ -184,7 +186,7 @@ export default function HomeScreen() {
       />
 
       <Pressable
-        style={styles.addButton}
+        style={[styles.addButton, { bottom: paddingBottom + 12 }]}
         onPress={() => navigation.navigate("TaskForm")}
       >
         <Text style={styles.addButtonText}>+ Add self-care task</Text>
@@ -240,7 +242,7 @@ function TaskRow({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fdfaf6", paddingTop: 60 },
+  container: { flex: 1, backgroundColor: "#fdfaf6" },
   budgetCard: {
     marginHorizontal: 16,
     marginBottom: 12,
@@ -294,7 +296,6 @@ const styles = StyleSheet.create({
   editButtonText: { fontSize: 16, color: "#a8998c" },
   addButton: {
     position: "absolute",
-    bottom: 24,
     left: 16,
     right: 16,
     backgroundColor: "#4a3f38",

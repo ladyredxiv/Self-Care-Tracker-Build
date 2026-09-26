@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { DayUsage, todayDateString } from "../db/logic";
 import { loadUsageTrend } from "../db/selectors";
+import { useScreenPadding } from "../hooks/useScreenPadding";
 import { parseDateString } from "../utils/date";
 
 const WINDOW_DAYS = 14;
@@ -11,6 +12,7 @@ const BAR_WIDTH = 28;
 
 export default function StatsScreen() {
   const navigation = useNavigation<any>();
+  const { paddingTop } = useScreenPadding();
   const [trend, setTrend] = useState<DayUsage[]>([]);
 
   useFocusEffect(
@@ -32,7 +34,7 @@ export default function StatsScreen() {
   const maxScale = Math.max(1, ...trend.map((d) => Math.max(d.budget, d.spent)));
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop }]}>
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
           <Text style={styles.backButton}>‹ Back</Text>
@@ -107,7 +109,7 @@ function DayBar({ day, maxScale }: { day: DayUsage; maxScale: number }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fdfaf6", paddingTop: 60 },
+  container: { flex: 1, backgroundColor: "#fdfaf6" },
   header: {
     flexDirection: "row",
     alignItems: "center",
