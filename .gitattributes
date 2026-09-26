@@ -1,0 +1,22 @@
+# Normalise line endings to LF in both the repository and the working tree.
+#
+# This is not cosmetic. expo-updates' "fingerprint" runtimeVersion policy hashes
+# file bytes, and eas.json is one of the inputs. With core.autocrlf=true on
+# Windows, an ordinary `git checkout` rewrote eas.json with CRLF, which changed
+# the Android fingerprint from f7eb033a to 79334b8d without changing a single
+# character of content. Published OTA updates then carry a runtimeVersion that no
+# installed build matches, so they are silently never delivered — no error on the
+# phone, no error from `eas update`.
+#
+# EAS builds check out on Linux and therefore see LF, so LF is the canonical form
+# and the working tree must match it.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.ttf binary
+*.otf binary
+*.db binary
