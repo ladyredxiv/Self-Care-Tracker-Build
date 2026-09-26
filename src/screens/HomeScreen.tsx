@@ -16,6 +16,7 @@ import {
   setSetting,
   uncompleteTask,
 } from "../db/database";
+import BuildBadge from "../components/BuildBadge";
 import { groupByTimeOfDay, todayDateString } from "../db/logic";
 import { loadDayStatus } from "../db/selectors";
 import { TaskWithStatus, TimeOfDay } from "../types";
@@ -137,6 +138,8 @@ export default function HomeScreen() {
           </Text>
         </View>
       </View>
+
+      <BuildBadge />
 
       <SectionList
         sections={sections}
