@@ -124,7 +124,7 @@ export default function HomeScreen() {
     if (unscheduled.length > 0) {
       result.push({
         key: "unscheduled",
-        title: "Not scheduled today",
+        title: "Not due today",
         data: unscheduled,
         interactive: false,
       });
@@ -197,6 +197,24 @@ export default function HomeScreen() {
   );
 }
 
+/**
+ * Cadence suffix for the task row. Deliberately states the rhythm rather than a
+ * verdict — "every 2 days" reads as information, where "overdue" reads as
+ * an accusation, and this is an app for people who are already short on slack.
+ */
+function describeSchedule(task: TaskWithStatus): string {
+  switch (task.scheduleType) {
+    case "interval":
+      return task.intervalDays === 1 ? " · every day" : ` · every ${task.intervalDays} days`;
+    case "once":
+      return " · one-off";
+    case "weekdays":
+      return task.daysOfWeek.length === 0 ? "" : ` · ${task.daysOfWeek.length}× a week`;
+    case "daily":
+      return "";
+  }
+}
+
 function TaskRow({
   task,
   onToggle,
@@ -225,13 +243,18 @@ function TaskRow({
         <Text style={styles.taskName}>{task.name}</Text>
         <Text style={styles.taskMeta}>
           {task.energyCost} energy · {task.category}
-          {task.isRecurring ? "" : " · one-off"}
+          {describeSchedule(task)}
           {task.streak > 0 ? ` · 🔥 ${task.streak}` : ""}
           {task.reminderEnabled && task.reminderTime
             ? ` · ⏰ ${formatTimeLabel(task.reminderTime)}`
             : ""}
         </Text>
       </View>
+      {!task.completedToday && task.daysWaiting > 0 && (
+        <Text style={styles.waitingTag}>
+          {task.daysWaiting}d waiting
+        </Text>
+      )}
       {blocked && <Text style={styles.blockedTag}>over budget</Text>}
       {task.completedToday && <Text style={styles.doneTag}>done</Text>}
       <Pressable
@@ -297,6 +320,8 @@ const createStyles = (palette: Palette) =>
   taskName: { fontSize: 16, fontWeight: "600", color: palette.textPrimary },
   taskMeta: { fontSize: 13, color: palette.textMuted, marginTop: 2 },
   blockedTag: { fontSize: 12, color: palette.warning },
+  // Muted rather than alarming: waiting time is a sorting signal, not a telling-off.
+  waitingTag: { fontSize: 12, color: palette.textMuted, marginRight: 8 },
   doneTag: { fontSize: 12, color: palette.doneText, fontWeight: "600" },
   editButton: { paddingLeft: 12, paddingVertical: 4 },
   editButtonText: { fontSize: 16, color: palette.icon },

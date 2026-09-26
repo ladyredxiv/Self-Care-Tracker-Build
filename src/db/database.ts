@@ -1,5 +1,5 @@
 import * as SQLite from "expo-sqlite";
-import { DatabaseSnapshot, DayOfWeek, Task, TimeOfDay } from "../types";
+import { DatabaseSnapshot, DayOfWeek, ScheduleType, Task, TimeOfDay } from "../types";
 
 const db = SQLite.openDatabaseSync("selfcare.db");
 
@@ -43,6 +43,8 @@ export function initDatabase() {
 
   ensureColumn("tasks", "reminderEnabled", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn("tasks", "reminderTime", "TEXT");
+  ensureColumn("tasks", "intervalDays", "INTEGER");
+  migrateToScheduleTypes();
   enforceOneCompletionPerTaskPerDay();
 
   db.execSync(`CREATE INDEX IF NOT EXISTS idx_completions_date ON completions (date)`);
@@ -66,37 +68,77 @@ function enforceOneCompletionPerTaskPerDay() {
   `);
 }
 
-/** Adds a column to an existing table only if it isn't already there — portable across SQLite builds that don't support "ADD COLUMN IF NOT EXISTS". */
-function ensureColumn(table: string, column: string, definition: string) {
+/**
+ * Adds a column to an existing table only if it isn't already there — portable
+ * across SQLite builds that don't support "ADD COLUMN IF NOT EXISTS".
+ * Returns whether it actually added the column, so callers can run a one-time
+ * backfill without needing a separate migration-version record.
+ */
+function ensureColumn(table: string, column: string, definition: string): boolean {
   const columns = db.getAllSync<any>(`PRAGMA table_info(${table})`);
-  const exists = columns.some((c) => c.name === column);
-  if (!exists) {
-    db.execSync(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
-  }
+  if (columns.some((c) => c.name === column)) return false;
+  db.execSync(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  return true;
+}
+
+/**
+ * Introduces the explicit scheduleType, derived from what the old boolean plus
+ * weekday list implied:
+ *   isRecurring = 0        -> 'once'
+ *   no weekdays selected   -> 'daily'
+ *   some weekdays selected -> 'weekdays'
+ *
+ * The backfill runs only on the migration step that adds the column, which is what
+ * makes it idempotent — afterwards a task legitimately set to 'daily' is
+ * indistinguishable from one that was never migrated.
+ *
+ * The now-redundant isRecurring column is left in place and kept in sync on write.
+ * Dropping it would mean a table rebuild, and the risk of that failing at launch on
+ * an app used daily isn't worth the tidiness.
+ */
+function migrateToScheduleTypes() {
+  const added = ensureColumn("tasks", "scheduleType", "TEXT NOT NULL DEFAULT 'daily'");
+  if (!added) return;
+
+  db.execSync(`
+    UPDATE tasks SET scheduleType = CASE
+      WHEN isRecurring = 0 THEN 'once'
+      WHEN daysOfWeek IS NULL OR daysOfWeek = '[]' THEN 'daily'
+      ELSE 'weekdays'
+    END
+  `);
 }
 
 // ---- Tasks ----
 
-export function createTask(task: {
+/** Everything the form supplies; id and createdAt are assigned here. */
+export interface TaskInput {
   name: string;
   energyCost: number;
   category: string;
   timeOfDay: TimeOfDay;
+  scheduleType: ScheduleType;
   daysOfWeek: DayOfWeek[];
-  isRecurring: boolean;
+  intervalDays: number | null;
   reminderEnabled: boolean;
   reminderTime: string | null;
-}): number {
+}
+
+export function createTask(task: TaskInput): number {
   const result = db.runSync(
-    `INSERT INTO tasks (name, energyCost, category, timeOfDay, daysOfWeek, isRecurring, reminderEnabled, reminderTime, createdAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO tasks (name, energyCost, category, timeOfDay, scheduleType, daysOfWeek, intervalDays, isRecurring, reminderEnabled, reminderTime, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       task.name,
       task.energyCost,
       task.category,
       task.timeOfDay,
+      task.scheduleType,
       JSON.stringify(task.daysOfWeek),
-      task.isRecurring ? 1 : 0,
+      task.intervalDays,
+      // Legacy column, kept in sync so an older build reading this row still
+      // behaves sensibly.
+      task.scheduleType === "once" ? 0 : 1,
       task.reminderEnabled ? 1 : 0,
       task.reminderTime,
       new Date().toISOString(),
@@ -120,34 +162,26 @@ export function deleteTask(id: number) {
   db.runSync(`DELETE FROM completions WHERE taskId = ?`, [id]);
 }
 
-export function updateTask(
-  id: number,
-  task: {
-    name: string;
-    energyCost: number;
-    category: string;
-    timeOfDay: TimeOfDay;
-    daysOfWeek: DayOfWeek[];
-    isRecurring: boolean;
-    reminderEnabled: boolean;
-    reminderTime: string | null;
-  }
-) {
+export function updateTask(id: number, task: TaskInput) {
   db.runSync(
-    `UPDATE tasks SET name = ?, energyCost = ?, category = ?, timeOfDay = ?, daysOfWeek = ?, isRecurring = ?, reminderEnabled = ?, reminderTime = ? WHERE id = ?`,
+    `UPDATE tasks SET name = ?, energyCost = ?, category = ?, timeOfDay = ?, scheduleType = ?, daysOfWeek = ?, intervalDays = ?, isRecurring = ?, reminderEnabled = ?, reminderTime = ? WHERE id = ?`,
     [
       task.name,
       task.energyCost,
       task.category,
       task.timeOfDay,
+      task.scheduleType,
       JSON.stringify(task.daysOfWeek),
-      task.isRecurring ? 1 : 0,
+      task.intervalDays,
+      task.scheduleType === "once" ? 0 : 1,
       task.reminderEnabled ? 1 : 0,
       task.reminderTime,
       id,
     ]
   );
 }
+
+const SCHEDULE_TYPES: ScheduleType[] = ["daily", "weekdays", "interval", "once"];
 
 function rowToTask(row: any): Task {
   return {
@@ -156,8 +190,16 @@ function rowToTask(row: any): Task {
     energyCost: row.energyCost,
     category: row.category,
     timeOfDay: row.timeOfDay,
+    // Falls back rather than trusting the column blindly: a row written by a build
+    // that predates scheduleType would otherwise yield undefined and break every
+    // switch over it.
+    scheduleType: SCHEDULE_TYPES.includes(row.scheduleType)
+      ? row.scheduleType
+      : row.isRecurring === 0
+        ? "once"
+        : "daily",
     daysOfWeek: JSON.parse(row.daysOfWeek),
-    isRecurring: !!row.isRecurring,
+    intervalDays: typeof row.intervalDays === "number" ? row.intervalDays : null,
     reminderEnabled: !!row.reminderEnabled,
     reminderTime: row.reminderTime ?? null,
     createdAt: row.createdAt,
@@ -288,17 +330,32 @@ export function restoreSnapshot(snapshot: DatabaseSnapshot) {
     db.runSync(`DELETE FROM settings`);
 
     for (const t of snapshot.tasks) {
+      const daysOfWeek =
+        typeof t.daysOfWeek === "string" ? t.daysOfWeek : JSON.stringify(t.daysOfWeek ?? []);
+
+      // Backups predating scheduleType only carry the isRecurring/daysOfWeek pair,
+      // so the same derivation the schema migration uses is applied here.
+      const scheduleType: ScheduleType = SCHEDULE_TYPES.includes(t.scheduleType)
+        ? t.scheduleType
+        : t.isRecurring === 0 || t.isRecurring === false
+          ? "once"
+          : daysOfWeek === "[]"
+            ? "daily"
+            : "weekdays";
+
       db.runSync(
-        `INSERT INTO tasks (id, name, energyCost, category, timeOfDay, daysOfWeek, isRecurring, reminderEnabled, reminderTime, createdAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO tasks (id, name, energyCost, category, timeOfDay, scheduleType, daysOfWeek, intervalDays, isRecurring, reminderEnabled, reminderTime, createdAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           t.id,
           t.name,
           t.energyCost,
           t.category ?? "general",
           t.timeOfDay ?? "anytime",
-          typeof t.daysOfWeek === "string" ? t.daysOfWeek : JSON.stringify(t.daysOfWeek ?? []),
-          t.isRecurring ? 1 : 0,
+          scheduleType,
+          daysOfWeek,
+          typeof t.intervalDays === "number" ? t.intervalDays : null,
+          scheduleType === "once" ? 0 : 1,
           t.reminderEnabled ? 1 : 0,
           t.reminderTime ?? null,
           t.createdAt ?? new Date().toISOString(),

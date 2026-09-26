@@ -1,14 +1,17 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { DayOfWeek, Task } from "../types";
+import { DayOfWeek, ScheduleType, Task } from "../types";
 import {
   buildDayStatus,
   buildUsageTrend,
   computeStreak,
   groupByTimeOfDay,
+  dueInfoFor,
+  intervalDueFrom,
+  isDueOn,
   isRetiredOneOff,
-  isScheduledOn,
+  lastCompletionBefore,
   plannedReminders,
 } from "./logic";
 
@@ -18,8 +21,9 @@ function makeTask(overrides: Partial<Task> & { id: number }): Task {
     energyCost: 1,
     category: "general",
     timeOfDay: "anytime",
+    scheduleType: "daily" as ScheduleType,
     daysOfWeek: [],
-    isRecurring: true,
+    intervalDays: null,
     reminderEnabled: false,
     reminderTime: null,
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -31,47 +35,148 @@ const EVERY_DAY: DayOfWeek[] = [];
 const MON_WED_FRI: DayOfWeek[] = [1, 3, 5];
 
 // 2026-09-25 is a Friday.
+const CREATED = "2026-01-01T00:00:00.000Z";
 const FRIDAY = "2026-09-25";
 const SATURDAY = "2026-09-26";
 
-describe("isScheduledOn", () => {
-  const repeating = { isRecurring: true };
+describe("isDueOn", () => {
+  const none = new Set<string>();
 
-  it("treats an empty daysOfWeek as every day", () => {
-    assert.equal(isScheduledOn({ ...repeating, daysOfWeek: EVERY_DAY }, FRIDAY), true);
-    assert.equal(isScheduledOn({ ...repeating, daysOfWeek: EVERY_DAY }, SATURDAY), true);
+  it("treats a daily task as always due", () => {
+    const daily = { scheduleType: "daily" as ScheduleType, daysOfWeek: EVERY_DAY, intervalDays: null, createdAt: CREATED };
+    assert.equal(isDueOn(daily, none, FRIDAY), true);
+    assert.equal(isDueOn(daily, none, SATURDAY), true);
   });
 
-  it("matches the local weekday", () => {
-    assert.equal(isScheduledOn({ ...repeating, daysOfWeek: MON_WED_FRI }, FRIDAY), true);
-    assert.equal(isScheduledOn({ ...repeating, daysOfWeek: MON_WED_FRI }, SATURDAY), false);
+  it("matches the local weekday for a weekdays task", () => {
+    const weekly = { scheduleType: "weekdays" as ScheduleType, daysOfWeek: MON_WED_FRI, intervalDays: null, createdAt: CREATED };
+    assert.equal(isDueOn(weekly, none, FRIDAY), true);
+    assert.equal(isDueOn(weekly, none, SATURDAY), false);
   });
 
-  it("ignores weekdays for a one-off", () => {
-    const oneOff = { isRecurring: false, daysOfWeek: MON_WED_FRI };
-    assert.equal(isScheduledOn(oneOff, FRIDAY), true);
-    assert.equal(isScheduledOn(oneOff, SATURDAY), true);
+  it("treats an empty weekday list as every day", () => {
+    const weekly = { scheduleType: "weekdays" as ScheduleType, daysOfWeek: EVERY_DAY, intervalDays: null, createdAt: CREATED };
+    assert.equal(isDueOn(weekly, none, SATURDAY), true);
+  });
+
+  it("treats a one-off as due until it is done", () => {
+    const once = { scheduleType: "once" as ScheduleType, daysOfWeek: MON_WED_FRI, intervalDays: null, createdAt: CREATED };
+    assert.equal(isDueOn(once, none, SATURDAY), true);
+  });
+});
+
+describe("lastCompletionBefore", () => {
+  it("finds the most recent completion strictly before the date", () => {
+    const dates = new Set(["2026-09-20", "2026-09-23", "2026-09-25"]);
+    assert.equal(lastCompletionBefore(dates, FRIDAY), "2026-09-23");
+  });
+
+  it("ignores completions on or after the date", () => {
+    assert.equal(lastCompletionBefore(new Set([FRIDAY, SATURDAY]), FRIDAY), null);
+  });
+
+  it("returns null when there are none", () => {
+    assert.equal(lastCompletionBefore(new Set(), FRIDAY), null);
+  });
+});
+
+describe("interval scheduling", () => {
+  const every2 = {
+    scheduleType: "interval" as ScheduleType,
+    daysOfWeek: EVERY_DAY,
+    intervalDays: 2,
+    createdAt: CREATED,
+  };
+
+  it("becomes due one interval after the last completion", () => {
+    assert.equal(intervalDueFrom(every2, new Set(["2026-09-23"]), FRIDAY), "2026-09-25");
+  });
+
+  it("is due immediately when never completed", () => {
+    // Due since it was created, so it has been waiting ever since.
+    // CREATED is UTC midnight on Jan 1, which is 7pm on Dec 31 locally — the
+    // local calendar date is what counts, consistently with every other date here.
+    assert.equal(intervalDueFrom(every2, new Set(), FRIDAY), "2025-12-31");
+  });
+
+  it("is not due the day after being done", () => {
+    const info = dueInfoFor(every2, new Set(["2026-09-24"]), FRIDAY);
+    assert.equal(info.isDue, false);
+    assert.equal(info.daysWaiting, 0);
+  });
+
+  it("is due exactly on the interval", () => {
+    assert.deepEqual(dueInfoFor(every2, new Set(["2026-09-23"]), FRIDAY), {
+      isDue: true,
+      daysWaiting: 0,
+    });
+  });
+
+  it("accrues waiting time when skipped instead of losing the occurrence", () => {
+    // Done Sunday the 20th, so due Tuesday the 22nd; by Friday it has waited 3 days.
+    // This is the case weekday scheduling handles badly: a missed Wednesday simply
+    // vanished until Friday.
+    assert.deepEqual(dueInfoFor(every2, new Set(["2026-09-20"]), FRIDAY), {
+      isDue: true,
+      daysWaiting: 3,
+    });
+  });
+
+  it("measures from the last completion before the date, not the latest overall", () => {
+    // Evaluating Friday must not be influenced by a completion on Saturday.
+    const info = dueInfoFor(every2, new Set(["2026-09-20", SATURDAY]), FRIDAY);
+    assert.equal(info.daysWaiting, 3);
+  });
+
+  it("expresses every other day, which no weekday set can", () => {
+    const dates = new Set<string>();
+    const due: string[] = [];
+    let last = "2026-09-25";
+    for (const date of ["2026-09-26", "2026-09-27", "2026-09-28", "2026-09-29"]) {
+      dates.add(last);
+      if (dueInfoFor(every2, dates, date).isDue) {
+        due.push(date);
+        last = date;
+      }
+    }
+    assert.deepEqual(due, ["2026-09-27", "2026-09-29"]);
+  });
+
+  it("treats a missing or nonsensical interval as daily", () => {
+    for (const intervalDays of [null, 0, -3]) {
+      assert.equal(
+        intervalDueFrom({ ...every2, intervalDays }, new Set(["2026-09-24"]), FRIDAY),
+        FRIDAY
+      );
+    }
+  });
+
+  it("falls back to being due now if createdAt is unparseable", () => {
+    assert.equal(
+      intervalDueFrom({ ...every2, createdAt: "not a date" }, new Set(), FRIDAY),
+      FRIDAY
+    );
   });
 });
 
 describe("isRetiredOneOff", () => {
-  it("never retires a repeating task", () => {
+  it("never retires a recurring task", () => {
     assert.equal(
-      isRetiredOneOff({ isRecurring: true }, new Set(["2026-09-24"]), FRIDAY),
+      isRetiredOneOff({ scheduleType: "daily" }, new Set(["2026-09-24"]), FRIDAY),
       false
     );
   });
 
   it("keeps an uncompleted one-off around", () => {
-    assert.equal(isRetiredOneOff({ isRecurring: false }, new Set(), FRIDAY), false);
+    assert.equal(isRetiredOneOff({ scheduleType: "once" }, new Set(), FRIDAY), false);
   });
 
   it("keeps a one-off visible on the day it was completed", () => {
-    assert.equal(isRetiredOneOff({ isRecurring: false }, new Set([FRIDAY]), FRIDAY), false);
+    assert.equal(isRetiredOneOff({ scheduleType: "once" }, new Set([FRIDAY]), FRIDAY), false);
   });
 
   it("retires a one-off on days after it was completed", () => {
-    assert.equal(isRetiredOneOff({ isRecurring: false }, new Set([FRIDAY]), SATURDAY), true);
+    assert.equal(isRetiredOneOff({ scheduleType: "once" }, new Set([FRIDAY]), SATURDAY), true);
   });
 });
 
@@ -137,10 +242,14 @@ describe("buildDayStatus", () => {
     assert.equal(status.budget, 10);
   });
 
-  it("counts completed-but-unscheduled tasks toward spend", () => {
+  it("counts a task completed on an off day toward spend, and shows it as done", () => {
     // Completing a task and then editing it to exclude today used to make the
-    // header disagree with the budget-fit calculation.
-    const tasks = [makeTask({ id: 1, energyCost: 5, daysOfWeek: MON_WED_FRI })];
+    // header disagree with the budget-fit calculation. Anything completed today
+    // also belongs in the main list showing as done, rather than being filed
+    // under "not due today" where the tick would be hidden.
+    const tasks = [
+      makeTask({ id: 1, energyCost: 5, scheduleType: "weekdays", daysOfWeek: MON_WED_FRI }),
+    ];
     const status = buildDayStatus({
       tasks,
       date: SATURDAY,
@@ -150,8 +259,8 @@ describe("buildDayStatus", () => {
     });
     assert.equal(status.spent, 5);
     assert.equal(status.remaining, 5);
-    assert.equal(status.tasks[0].scheduledToday, false);
     assert.equal(status.tasks[0].completedToday, true);
+    assert.equal(status.tasks[0].scheduledToday, true);
   });
 
   it("fits tasks greedily cheapest-first", () => {
@@ -191,8 +300,8 @@ describe("buildDayStatus", () => {
 
   it("sorts scheduled tasks ahead of unscheduled ones", () => {
     const tasks = [
-      makeTask({ id: 1, energyCost: 9, daysOfWeek: MON_WED_FRI }),
-      makeTask({ id: 2, energyCost: 1, daysOfWeek: [0] }),
+      makeTask({ id: 1, energyCost: 9, scheduleType: "weekdays", daysOfWeek: MON_WED_FRI }),
+      makeTask({ id: 2, energyCost: 1, scheduleType: "weekdays", daysOfWeek: [0] }),
     ];
     const status = buildDayStatus({
       tasks,
@@ -226,8 +335,10 @@ describe("plannedReminders", () => {
   const reminding = {
     reminderEnabled: true,
     reminderTime: "09:00",
+    scheduleType: "daily" as ScheduleType,
     daysOfWeek: EVERY_DAY,
-    isRecurring: true,
+    intervalDays: null,
+    createdAt: CREATED,
   };
 
   it("plans one reminder per day across the horizon", () => {
@@ -264,7 +375,7 @@ describe("plannedReminders", () => {
 
   it("only plans days the task is scheduled for", () => {
     const planned = plannedReminders(
-      { ...reminding, daysOfWeek: MON_WED_FRI },
+      { ...reminding, scheduleType: "weekdays", daysOfWeek: MON_WED_FRI },
       new Set(),
       FRIDAY_MORNING,
       7
@@ -313,7 +424,7 @@ describe("plannedReminders", () => {
 
   it("reminds every day for an uncompleted one-off", () => {
     const planned = plannedReminders(
-      { ...reminding, isRecurring: false, daysOfWeek: MON_WED_FRI },
+      { ...reminding, scheduleType: "once", daysOfWeek: MON_WED_FRI },
       new Set(),
       FRIDAY_MORNING,
       3
@@ -328,7 +439,7 @@ describe("plannedReminders", () => {
     // The completed date isn't in the window at all, so a naive
     // "skip completed days" rule would keep reminding forever.
     const planned = plannedReminders(
-      { ...reminding, isRecurring: false },
+      { ...reminding, scheduleType: "once" },
       new Set(["2026-09-20"]),
       FRIDAY_MORNING,
       5
@@ -337,11 +448,105 @@ describe("plannedReminders", () => {
   });
 });
 
+describe("buildDayStatus priority from waiting time", () => {
+  const interval = (id: number, energyCost: number, intervalDays: number) =>
+    makeTask({ id, energyCost, scheduleType: "interval", intervalDays });
+
+  it("gives the longest-waiting task the budget ahead of cheaper work", () => {
+    // The shower costs 5 and has waited 4 days; two 2-cost dailies would otherwise
+    // soak up the 6-point budget first and leave it marked as not fitting.
+    const tasks = [
+      makeTask({ id: 1, energyCost: 2 }),
+      makeTask({ id: 2, energyCost: 2 }),
+      interval(3, 5, 2),
+    ];
+    const status = buildDayStatus({
+      tasks,
+      date: FRIDAY,
+      budget: 6,
+      completedTaskIds: new Set(),
+      completedDatesByTask: new Map([[3, new Set(["2026-09-19"])]]),
+    });
+
+    const shower = status.tasks.find((t) => t.id === 3);
+    assert.equal(shower?.daysWaiting, 4);
+    assert.equal(shower?.fitsRemainingBudget, true, "waiting work should win the slot");
+    // 6 - 5 leaves 1, enough for neither 2-cost daily.
+    assert.deepEqual(
+      status.tasks.filter((t) => t.fitsRemainingBudget).map((t) => t.id),
+      [3]
+    );
+  });
+
+  it("orders by waiting time, then by cost", () => {
+    const tasks = [interval(1, 9, 2), interval(2, 1, 2), makeTask({ id: 3, energyCost: 4 })];
+    const status = buildDayStatus({
+      tasks,
+      date: FRIDAY,
+      budget: 20,
+      completedTaskIds: new Set(),
+      completedDatesByTask: new Map([
+        [1, new Set(["2026-09-22"])], // waiting 1
+        [2, new Set(["2026-09-20"])], // waiting 3
+      ]),
+    });
+    // id 2 waited longest, then id 1, then the daily with no waiting time.
+    assert.deepEqual(
+      status.tasks.map((t) => t.id),
+      [2, 1, 3]
+    );
+  });
+
+  it("falls back to cheapest-first when nothing is waiting", () => {
+    const tasks = [
+      makeTask({ id: 1, energyCost: 5 }),
+      makeTask({ id: 2, energyCost: 1 }),
+      makeTask({ id: 3, energyCost: 3 }),
+    ];
+    const status = buildDayStatus({
+      tasks,
+      date: FRIDAY,
+      budget: 20,
+      completedTaskIds: new Set(),
+      completedDatesByTask: new Map(),
+    });
+    assert.deepEqual(
+      status.tasks.map((t) => t.id),
+      [2, 3, 1]
+    );
+  });
+
+  it("files a not-yet-due interval task under upcoming", () => {
+    const tasks = [interval(1, 2, 3)];
+    const status = buildDayStatus({
+      tasks,
+      date: FRIDAY,
+      budget: 10,
+      completedTaskIds: new Set(),
+      completedDatesByTask: new Map([[1, new Set(["2026-09-24"])]]),
+    });
+    assert.equal(status.tasks[0].scheduledToday, false);
+    assert.equal(status.tasks[0].fitsRemainingBudget, false);
+  });
+
+  it("reports no streak for an interval task", () => {
+    const tasks = [interval(1, 2, 2)];
+    const status = buildDayStatus({
+      tasks,
+      date: FRIDAY,
+      budget: 10,
+      completedTaskIds: new Set([1]),
+      completedDatesByTask: new Map([[1, new Set([FRIDAY, "2026-09-23"])]]),
+    });
+    assert.equal(status.tasks[0].streak, 0);
+  });
+});
+
 describe("buildDayStatus with one-off tasks", () => {
   const noDates = new Map<number, Set<string>>();
 
   it("shows an uncompleted one-off regardless of weekday", () => {
-    const tasks = [makeTask({ id: 1, isRecurring: false, daysOfWeek: MON_WED_FRI })];
+    const tasks = [makeTask({ id: 1, scheduleType: "once", daysOfWeek: MON_WED_FRI })];
     const status = buildDayStatus({
       tasks,
       date: SATURDAY,
@@ -354,7 +559,7 @@ describe("buildDayStatus with one-off tasks", () => {
   });
 
   it("still shows a one-off on the day it was completed", () => {
-    const tasks = [makeTask({ id: 1, energyCost: 4, isRecurring: false })];
+    const tasks = [makeTask({ id: 1, energyCost: 4, scheduleType: "once" })];
     const status = buildDayStatus({
       tasks,
       date: FRIDAY,
@@ -368,7 +573,7 @@ describe("buildDayStatus with one-off tasks", () => {
   });
 
   it("removes a one-off completed on an earlier day", () => {
-    const tasks = [makeTask({ id: 1, isRecurring: false })];
+    const tasks = [makeTask({ id: 1, scheduleType: "once" })];
     const status = buildDayStatus({
       tasks,
       date: SATURDAY,
@@ -380,7 +585,7 @@ describe("buildDayStatus with one-off tasks", () => {
   });
 
   it("reports no streak for a one-off", () => {
-    const tasks = [makeTask({ id: 1, isRecurring: false })];
+    const tasks = [makeTask({ id: 1, scheduleType: "once" })];
     const status = buildDayStatus({
       tasks,
       date: FRIDAY,
@@ -392,7 +597,7 @@ describe("buildDayStatus with one-off tasks", () => {
   });
 
   it("leaves repeating tasks untouched by retirement", () => {
-    const tasks = [makeTask({ id: 1, isRecurring: true })];
+    const tasks = [makeTask({ id: 1, scheduleType: "daily" })];
     const status = buildDayStatus({
       tasks,
       date: SATURDAY,

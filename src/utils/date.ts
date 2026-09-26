@@ -39,6 +39,26 @@ export function shiftDateString(date: string, days: number): string {
   return toDateString(addDays(parseDateString(date), days));
 }
 
+/**
+ * Whole days from `from` to `to`, negative if `to` is earlier.
+ *
+ * Rounded rather than truncated because a DST transition makes a local day 23 or
+ * 25 hours long, which would otherwise shift the result by one.
+ */
+export function daysBetween(from: string, to: string): number {
+  const ms = parseDateString(to).getTime() - parseDateString(from).getTime();
+  return Math.round(ms / 86_400_000);
+}
+
+/**
+ * Local date portion of an ISO timestamp, falling back when it can't be parsed —
+ * createdAt comes from the database and shouldn't be able to crash scheduling.
+ */
+export function dateStringFromISO(iso: string, fallback: string): string {
+  const parsed = new Date(iso);
+  return Number.isNaN(parsed.getTime()) ? fallback : toDateString(parsed);
+}
+
 /** Day of week (0 = Sunday) for a local date string. */
 export function dayOfWeekFor(date: string): DayOfWeek {
   return parseDateString(date).getDay() as DayOfWeek;

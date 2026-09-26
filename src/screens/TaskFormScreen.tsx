@@ -17,10 +17,23 @@ import { cancelTaskReminders, requestNotificationPermissions } from "../notifica
 import { syncRemindersForTask } from "../reminders";
 import { useScreenPadding } from "../hooks/useScreenPadding";
 import { Palette, useTheme, useThemedStyles } from "../theme";
-import { DayOfWeek, TimeOfDay } from "../types";
+import { DayOfWeek, ScheduleType, TimeOfDay } from "../types";
 import { timeStringToDate, dateToTimeString, formatTimeLabel } from "../utils/time";
 
 const TIME_OPTIONS: TimeOfDay[] = ["anytime", "morning", "afternoon", "evening"];
+const SCHEDULE_OPTIONS: { value: ScheduleType; label: string }[] = [
+  { value: "daily", label: "Every day" },
+  { value: "interval", label: "Every N days" },
+  { value: "weekdays", label: "Certain days" },
+  { value: "once", label: "One-off" },
+];
+const SCHEDULE_HINTS: Record<ScheduleType, string> = {
+  daily: "Due every day. Best for the non-negotiables.",
+  interval:
+    "Counts from the last time you did it, not the calendar. Skip a day and it stays due — and the longer it waits, the higher it sorts and the more likely it is to win a slot when energy is short.",
+  weekdays: "Fixed days of the week. Good for things pinned to the calendar, like therapy homework.",
+  once: "Stays on your list every day until you finish it, then disappears.",
+};
 const DAY_LABELS: { label: string; value: DayOfWeek }[] = [
   { label: "Sun", value: 0 },
   { label: "Mon", value: 1 },
@@ -45,7 +58,8 @@ export default function TaskFormScreen() {
   const [category, setCategory] = useState("general");
   const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>("anytime");
   const [selectedDays, setSelectedDays] = useState<DayOfWeek[]>([]);
-  const [isRecurring, setIsRecurring] = useState(true);
+  const [scheduleType, setScheduleType] = useState<ScheduleType>("daily");
+  const [intervalDays, setIntervalDays] = useState("2");
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderTime, setReminderTime] = useState("09:00");
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -59,7 +73,8 @@ export default function TaskFormScreen() {
     setCategory(task.category);
     setTimeOfDay(task.timeOfDay);
     setSelectedDays(task.daysOfWeek);
-    setIsRecurring(task.isRecurring);
+    setScheduleType(task.scheduleType);
+    setIntervalDays(String(task.intervalDays ?? 2));
     setReminderEnabled(task.reminderEnabled);
     setReminderTime(task.reminderTime ?? "09:00");
   }, [isEditing, taskId]);
@@ -82,15 +97,18 @@ export default function TaskFormScreen() {
     const cost = parseInt(energyCost, 10);
     if (!name.trim() || Number.isNaN(cost) || cost < 0) return;
 
+    const interval = parseInt(intervalDays, 10);
+    if (scheduleType === "interval" && (Number.isNaN(interval) || interval < 1)) return;
+
     const payload = {
       name: name.trim(),
       energyCost: cost,
       category: category.trim() || "general",
       timeOfDay,
-      // Weekday selections are irrelevant to a one-off, so they aren't persisted
-      // as stale state on it.
-      daysOfWeek: isRecurring ? selectedDays : [],
-      isRecurring,
+      scheduleType,
+      // Fields belonging to other schedule types aren't persisted as stale state.
+      daysOfWeek: scheduleType === "weekdays" ? selectedDays : [],
+      intervalDays: scheduleType === "interval" ? interval : null,
       reminderEnabled,
       reminderTime: reminderEnabled ? reminderTime : null,
     };
@@ -173,12 +191,42 @@ export default function TaskFormScreen() {
         ))}
       </View>
 
-      <View style={styles.reminderRow}>
-        <Text style={styles.label}>Repeats</Text>
-        <Switch value={isRecurring} onValueChange={setIsRecurring} />
+      <Text style={styles.label}>How often</Text>
+      <View style={styles.chipRow}>
+        {SCHEDULE_OPTIONS.map((option) => (
+          <Pressable
+            key={option.value}
+            style={[styles.chip, scheduleType === option.value && styles.chipSelected]}
+            onPress={() => setScheduleType(option.value)}
+          >
+            <Text
+              style={[
+                styles.chipText,
+                scheduleType === option.value && styles.chipTextSelected,
+              ]}
+            >
+              {option.label}
+            </Text>
+          </Pressable>
+        ))}
       </View>
+      <Text style={styles.hint}>{SCHEDULE_HINTS[scheduleType]}</Text>
 
-      {isRecurring ? (
+      {scheduleType === "interval" && (
+        <>
+          <Text style={styles.label}>Days between</Text>
+          <TextInput
+            style={styles.input}
+            value={intervalDays}
+            onChangeText={setIntervalDays}
+            keyboardType="number-pad"
+            placeholder="e.g. 2"
+            placeholderTextColor={palette.textMuted}
+          />
+        </>
+      )}
+
+      {scheduleType === "weekdays" && (
         <>
           <Text style={styles.label}>Days (leave blank for every day)</Text>
           <View style={styles.chipRow}>
@@ -200,10 +248,6 @@ export default function TaskFormScreen() {
             ))}
           </View>
         </>
-      ) : (
-        <Text style={styles.hint}>
-          A one-off stays on your list every day until you finish it, then disappears.
-        </Text>
       )}
 
       <View style={styles.reminderRow}>
@@ -259,7 +303,7 @@ const createStyles = (palette: Palette) =>
     backgroundColor: palette.surface,
     color: palette.textPrimary,
   },
-  hint: { fontSize: 13, color: palette.textMuted, lineHeight: 19 },
+  hint: { fontSize: 13, color: palette.textMuted, lineHeight: 19, marginTop: 8 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
     paddingHorizontal: 14,

@@ -6,7 +6,14 @@
 import { DatabaseSnapshot } from "../types";
 
 export const BACKUP_APP_ID = "spoons";
-export const BACKUP_FORMAT_VERSION = 1;
+
+/**
+ * 2 added tasks.scheduleType and tasks.intervalDays. Version 1 backups still
+ * restore — restoreSnapshot derives scheduleType from the old isRecurring and
+ * daysOfWeek pair — but a version 2 file must not be fed to a build that predates
+ * those columns, which is what the version check enforces.
+ */
+export const BACKUP_FORMAT_VERSION = 2;
 
 export interface BackupFile {
   app: typeof BACKUP_APP_ID;
