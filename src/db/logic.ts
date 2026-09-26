@@ -158,6 +158,33 @@ export function computeStreak(
   return streak;
 }
 
+/**
+ * Consecutive on-time completions for an interval task.
+ *
+ * A calendar-day streak is meaningless for something done every few days, so this
+ * counts runs where each completion landed within one interval of the one before.
+ *
+ * A task merely sitting there pending doesn't break the run — the same grace
+ * computeStreak gives today. Completing it late does, because that's the point at
+ * which the cadence actually slipped.
+ */
+export function computeOnTimeStreak(
+  completedDates: ReadonlySet<string>,
+  intervalDays: number | null,
+  today: string
+): number {
+  const interval = Math.max(1, Math.floor(intervalDays ?? 1));
+  const past = [...completedDates].filter((date) => date <= today).sort().reverse();
+  if (past.length === 0) return 0;
+
+  let streak = 1;
+  for (let i = 1; i < past.length; i++) {
+    if (daysBetween(past[i], past[i - 1]) <= interval) streak++;
+    else break;
+  }
+  return streak;
+}
+
 /** Window used for the gentler "N of last N days" progress measure. */
 export const RECENT_WINDOW_DAYS = 30;
 
@@ -237,14 +264,21 @@ export function buildDayStatus(input: DayStatusInput): DayStatus {
     .reduce((sum, t) => sum + spoonsSpentFor(t), 0);
   const remaining = budget - spent;
 
-  // Streaks only mean something for a fixed cadence. An interval task's "streak"
-  // would be consecutive on-time completions, a different calculation; a one-off
-  // has nothing to be consecutive with. Reporting 0 lets the UI's "streak > 0"
-  // check hide the flame without needing to know why.
-  const streakFor = (task: Task) =>
-    task.scheduleType === "daily" || task.scheduleType === "weekdays"
-      ? computeStreak(completedDatesFor(task), task.daysOfWeek, date)
-      : 0;
+  // Each schedule type needs its own notion of a streak: consecutive scheduled days
+  // for a fixed cadence, consecutive on-time completions for an interval. A one-off
+  // reports 0, which the UI's "streak > 0" check hides without needing to know why.
+  const streakFor = (task: Task) => {
+    switch (task.scheduleType) {
+      case "daily":
+      case "weekdays":
+        return computeStreak(completedDatesFor(task), task.daysOfWeek, date);
+      case "interval":
+        return computeOnTimeStreak(completedDatesFor(task), task.intervalDays, date);
+      case "once":
+        // Nothing to be consecutive with.
+        return 0;
+    }
+  };
 
   const withDueInfo = tasks.map((task) => ({
     task,
@@ -483,6 +517,26 @@ export function suggestCostAdjustments(
       (a, b) =>
         Math.abs(b.averageSpent - b.configuredCost) - Math.abs(a.averageSpent - a.configuredCost)
     );
+}
+
+/**
+ * The handful of things to actually attempt now: due, not yet done, and inside
+ * what today's energy allows.
+ *
+ * Input is assumed to be in allocation order (essentials, then longest-waiting,
+ * then cheapest), which buildDayStatus already guarantees — so this is a slice, not
+ * a re-ranking. "What do I do right now" is the real question on a low-energy day,
+ * and a full list of twelve things doesn't answer it.
+ */
+export function pickStartHere(
+  tasks: TaskWithStatus[],
+  limit: number = 3
+): TaskWithStatus[] {
+  return tasks
+    .filter(
+      (task) => task.scheduledToday && !task.completedToday && task.fitsRemainingBudget
+    )
+    .slice(0, limit);
 }
 
 export interface CapacityOption {

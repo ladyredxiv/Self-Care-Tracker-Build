@@ -21,7 +21,8 @@ import {
 import BuildBadge from "../components/BuildBadge";
 import CapacityCheckIn from "../components/CapacityCheckIn";
 import DayReflection from "../components/DayReflection";
-import { groupByTimeOfDay, partialSpoons, todayDateString } from "../db/logic";
+import StartHere from "../components/StartHere";
+import { groupByTimeOfDay, partialSpoons, pickStartHere, todayDateString } from "../db/logic";
 import { confirmCapacity, getProgressStyle, loadDayStatus } from "../db/selectors";
 import { getDayLog, setDayReflection } from "../db/database";
 import { useScreenPadding } from "../hooks/useScreenPadding";
@@ -164,6 +165,8 @@ export default function HomeScreen() {
       ? true
       : new Date().getHours() >= 18);
 
+  const startHere = useMemo(() => pickStartHere(tasks), [tasks]);
+
   const sections = useMemo<TaskSection[]>(() => {
     const result: TaskSection[] = groupByTimeOfDay(
       tasks.filter((t) => t.scheduledToday)
@@ -227,6 +230,8 @@ export default function HomeScreen() {
       {showReflection && (
         <DayReflection rating={dayLog?.rating ?? null} onRate={rateDay} />
       )}
+
+      {!showCheckIn && <StartHere tasks={startHere} onComplete={(t) => complete(t)} />}
 
       <BuildBadge />
 

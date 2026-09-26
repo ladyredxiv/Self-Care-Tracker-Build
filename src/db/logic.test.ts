@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { DayOfWeek, DayRating, ScheduleType, Task } from "../types";
+import { DayOfWeek, DayRating, ScheduleType, Task, TaskWithStatus } from "../types";
 import {
   analysePayback,
   buildDayStatus,
   buildUsageTrend,
   capacityOptions,
+  computeOnTimeStreak,
   computeStreak,
   DayRecord,
   describePayback,
@@ -18,6 +19,7 @@ import {
   isRetiredOneOff,
   lastCompletionBefore,
   partialSpoons,
+  pickStartHere,
   plannedReminders,
   recentCompletionCount,
   suggestCostAdjustments,
@@ -161,6 +163,115 @@ describe("analysePayback", () => {
     const insight = analysePayback([]);
     assert.equal(insight.overallAvgRating, null);
     assert.equal(insight.hasEnoughData, false);
+  });
+});
+
+describe("computeOnTimeStreak", () => {
+  it("counts completions that each landed within the interval", () => {
+    // Every 2 days: 25th, 23rd, 21st — three on-time in a row.
+    const dates = new Set(["2026-09-25", "2026-09-23", "2026-09-21"]);
+    assert.equal(computeOnTimeStreak(dates, 2, FRIDAY), 3);
+  });
+
+  it("allows earlier-than-due completions", () => {
+    // Done daily on an every-3-days task: still never late.
+    const dates = new Set(["2026-09-25", "2026-09-24", "2026-09-23"]);
+    assert.equal(computeOnTimeStreak(dates, 3, FRIDAY), 3);
+  });
+
+  it("breaks where the gap exceeded the interval", () => {
+    // 6-day gap between the 19th and 25th on an every-2-days task.
+    const dates = new Set(["2026-09-25", "2026-09-19", "2026-09-17"]);
+    assert.equal(computeOnTimeStreak(dates, 2, FRIDAY), 1);
+  });
+
+  it("keeps the run while merely pending, before anything is late", () => {
+    // Last done the 24th, due the 26th, evaluated on the 25th — nothing missed yet.
+    const dates = new Set(["2026-09-24", "2026-09-22"]);
+    assert.equal(computeOnTimeStreak(dates, 2, FRIDAY), 2);
+  });
+
+  it("returns 0 with no completions", () => {
+    assert.equal(computeOnTimeStreak(new Set(), 2, FRIDAY), 0);
+  });
+
+  it("ignores completions after the evaluated date", () => {
+    assert.equal(computeOnTimeStreak(new Set(["2026-10-01"]), 2, FRIDAY), 0);
+  });
+
+  it("treats a missing interval as daily", () => {
+    const dates = new Set(["2026-09-25", "2026-09-24"]);
+    assert.equal(computeOnTimeStreak(dates, null, FRIDAY), 2);
+  });
+
+  it("is reported for interval tasks through buildDayStatus", () => {
+    const tasks = [makeTask({ id: 1, scheduleType: "interval", intervalDays: 2 })];
+    const status = buildDayStatus({
+      tasks,
+      date: FRIDAY,
+      budget: 10,
+      completedTaskIds: new Set([1]),
+      completedDatesByTask: new Map([[1, new Set([FRIDAY, "2026-09-23", "2026-09-21"])]]),
+    });
+    assert.equal(status.tasks[0].streak, 3);
+  });
+});
+
+describe("pickStartHere", () => {
+  const withStatus = (
+    id: number,
+    overrides: Partial<TaskWithStatus> = {}
+  ): TaskWithStatus => ({
+    ...makeTask({ id }),
+    completedToday: false,
+    spoonsSpentToday: null,
+    fitsRemainingBudget: true,
+    scheduledToday: true,
+    streak: 0,
+    recentCompletions: 0,
+    daysWaiting: 0,
+    ...overrides,
+  });
+
+  it("takes the first few in allocation order without re-ranking", () => {
+    const tasks = [withStatus(1), withStatus(2), withStatus(3), withStatus(4)];
+    assert.deepEqual(
+      pickStartHere(tasks).map((t) => t.id),
+      [1, 2, 3]
+    );
+  });
+
+  it("skips anything already done", () => {
+    const tasks = [withStatus(1, { completedToday: true }), withStatus(2)];
+    assert.deepEqual(
+      pickStartHere(tasks).map((t) => t.id),
+      [2]
+    );
+  });
+
+  it("skips what today's energy doesn't allow", () => {
+    const tasks = [withStatus(1, { fitsRemainingBudget: false }), withStatus(2)];
+    assert.deepEqual(
+      pickStartHere(tasks).map((t) => t.id),
+      [2]
+    );
+  });
+
+  it("skips tasks that aren't due", () => {
+    const tasks = [withStatus(1, { scheduledToday: false }), withStatus(2)];
+    assert.deepEqual(
+      pickStartHere(tasks).map((t) => t.id),
+      [2]
+    );
+  });
+
+  it("returns nothing when the day is done", () => {
+    assert.deepEqual(pickStartHere([withStatus(1, { completedToday: true })]), []);
+  });
+
+  it("respects a custom limit", () => {
+    const tasks = [withStatus(1), withStatus(2), withStatus(3)];
+    assert.equal(pickStartHere(tasks, 1).length, 1);
   });
 });
 
@@ -828,7 +939,9 @@ describe("buildDayStatus priority from waiting time", () => {
     assert.equal(status.tasks[0].fitsRemainingBudget, false);
   });
 
-  it("reports no streak for an interval task", () => {
+  it("reports an on-time streak for an interval task", () => {
+    // Previously reported 0 because a calendar-day streak was meaningless here;
+    // it now counts completions that each landed within the interval.
     const tasks = [interval(1, 2, 2)];
     const status = buildDayStatus({
       tasks,
@@ -837,7 +950,7 @@ describe("buildDayStatus priority from waiting time", () => {
       completedTaskIds: new Set([1]),
       completedDatesByTask: new Map([[1, new Set([FRIDAY, "2026-09-23"])]]),
     });
-    assert.equal(status.tasks[0].streak, 0);
+    assert.equal(status.tasks[0].streak, 2);
   });
 });
 
