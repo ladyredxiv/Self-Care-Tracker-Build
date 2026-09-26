@@ -4,7 +4,7 @@
  * that feed these functions live in selectors.ts.
  */
 
-import { DayOfWeek, Task, TaskWithStatus, TimeOfDay } from "../types";
+import { DayOfWeek, DayRating, Task, TaskWithStatus, TimeOfDay } from "../types";
 import {
   addDays,
   dateStringFromISO,
@@ -251,6 +251,142 @@ export function buildDayStatus(input: DayStatusInput): DayStatus {
     }));
 
   return { tasks: [...scheduled, ...upcoming], budget, spent, remaining };
+}
+
+export interface DayRecord {
+  date: string;
+  budget: number;
+  spent: number;
+  rating: DayRating | null;
+}
+
+/** Days after an overspend to look for payback. */
+export const PAYBACK_LAG_DAYS = 2;
+
+/**
+ * Fewest over-budget days with follow-up ratings before any comparison is
+ * reported. Below this, a "pattern" is one or two coincidences, and this is
+ * health-adjacent enough that overstating it would be worse than saying nothing.
+ */
+export const MIN_SAMPLE_FOR_PAYBACK = 3;
+
+export interface PaybackInsight {
+  overBudgetDays: number;
+  ratedDays: number;
+  overallAvgRating: number | null;
+  /** Mean rating across the days following an overspend. */
+  avgRatingAfterOverBudget: number | null;
+  avgRatingAfterWithinBudget: number | null;
+  /** Overspends followed by a below-average stretch. */
+  paybackDays: number;
+  /** Overspends that had any rated follow-up at all — the real sample size. */
+  comparableOverBudgetDays: number;
+  hasEnoughData: boolean;
+}
+
+function mean(values: number[]): number | null {
+  if (values.length === 0) return null;
+  return values.reduce((sum, v) => sum + v, 0) / values.length;
+}
+
+/**
+ * Looks for post-exertional payback: whether going over budget is followed by
+ * worse days.
+ *
+ * This is the question pacing exists to answer, and the one thing a generic
+ * to-do list can never surface. Correlational only — it reports what the numbers
+ * say and deliberately doesn't claim causation.
+ */
+export function analysePayback(
+  records: DayRecord[],
+  lagDays: number = PAYBACK_LAG_DAYS
+): PaybackInsight {
+  const byDate = new Map(records.map((r) => [r.date, r]));
+  const allRatings = records.filter((r) => r.rating !== null).map((r) => r.rating as number);
+  const overallAvgRating = mean(allRatings);
+
+  const followUpAverage = (date: string): number | null => {
+    const ratings: number[] = [];
+    for (let lag = 1; lag <= lagDays; lag++) {
+      const next = byDate.get(shiftDateString(date, lag));
+      if (next?.rating != null) ratings.push(next.rating);
+    }
+    return mean(ratings);
+  };
+
+  const afterOver: number[] = [];
+  const afterWithin: number[] = [];
+  let overBudgetDays = 0;
+  let paybackDays = 0;
+
+  for (const record of records) {
+    const isOver = record.spent > record.budget;
+    if (isOver) overBudgetDays++;
+
+    const follow = followUpAverage(record.date);
+    if (follow === null) continue;
+
+    if (isOver) {
+      afterOver.push(follow);
+      if (overallAvgRating !== null && follow < overallAvgRating) paybackDays++;
+    } else {
+      afterWithin.push(follow);
+    }
+  }
+
+  return {
+    overBudgetDays,
+    ratedDays: allRatings.length,
+    overallAvgRating,
+    avgRatingAfterOverBudget: mean(afterOver),
+    avgRatingAfterWithinBudget: mean(afterWithin),
+    paybackDays,
+    comparableOverBudgetDays: afterOver.length,
+    hasEnoughData: afterOver.length >= MIN_SAMPLE_FOR_PAYBACK,
+  };
+}
+
+/**
+ * One plain sentence about the payback comparison, or an honest statement that
+ * there isn't enough to say yet. Never phrased as a telling-off.
+ */
+export function describePayback(insight: PaybackInsight): string {
+  if (!insight.hasEnoughData) {
+    const needed = MIN_SAMPLE_FOR_PAYBACK - insight.comparableOverBudgetDays;
+    return insight.ratedDays === 0
+      ? "Rate how your days go and this will start showing whether overspending catches up with you."
+      : `Not enough to compare yet — ${needed} more over-budget day${needed === 1 ? "" : "s"} with a rating after it.`;
+  }
+
+  const after = insight.avgRatingAfterOverBudget as number;
+  const within = insight.avgRatingAfterWithinBudget;
+
+  if (within === null) {
+    return `After going over budget, the next couple of days averaged ${after.toFixed(1)} out of 5.`;
+  }
+
+  const gap = within - after;
+  if (gap < 0.3) {
+    return `Going over budget hasn't been followed by worse days so far — ${after.toFixed(
+      1
+    )} after overspending versus ${within.toFixed(1)} otherwise.`;
+  }
+
+  return `The couple of days after going over budget averaged ${after.toFixed(
+    1
+  )} out of 5, against ${within.toFixed(1)} after staying within it. ${
+    insight.paybackDays
+  } of ${insight.comparableOverBudgetDays} overspends were followed by a below-average stretch.`;
+}
+
+export interface CategoryLoad {
+  category: string;
+  spent: number;
+}
+
+/** Energy spent per category, heaviest first. */
+export function rankCategoryLoad(entries: CategoryLoad[]): CategoryLoad[] {
+  return [...entries].sort((a, b) => b.spent - a.spent || a.category.localeCompare(b.category));
 }
 
 export interface CapacityOption {

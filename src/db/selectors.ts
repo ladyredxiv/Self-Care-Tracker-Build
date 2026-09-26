@@ -8,6 +8,8 @@ import {
   DEFAULT_BUDGET_KEY,
   getAllTasks,
   getBudgetForDate,
+  getDayLogsBetween,
+  getEnergySpentByCategory,
   getCompletedDatesByTask,
   getCompletionsForDate,
   getEnergySpentByDate,
@@ -17,7 +19,17 @@ import {
   setBudgetForDate,
   setSetting,
 } from "./database";
-import { buildDayStatus, buildUsageTrend, DayStatus, DayUsage } from "./logic";
+import {
+  analysePayback,
+  buildDayStatus,
+  buildUsageTrend,
+  CategoryLoad,
+  DayRecord,
+  DayStatus,
+  DayUsage,
+  PaybackInsight,
+  rankCategoryLoad,
+} from "./logic";
 
 /** Used until the user sets a budget of their own. */
 export const FALLBACK_BUDGET = 10;
@@ -47,6 +59,47 @@ export function loadDayStatus(date: string): DayStatus {
     completedTaskIds: new Set(getCompletionsForDate(date)),
     completedDatesByTask: getCompletedDatesByTask(),
   });
+}
+
+export interface Insights {
+  payback: PaybackInsight;
+  categories: CategoryLoad[];
+  avgCapacity: number | null;
+  avgSpent: number | null;
+}
+
+/**
+ * Pattern analysis over a longer window than the chart uses — payback needs enough
+ * over-budget days with ratings after them to say anything at all.
+ */
+export function loadInsights(days: number, today: string): Insights {
+  const start = shiftDateString(today, -(days - 1));
+  const dates: string[] = [];
+  for (let i = days - 1; i >= 0; i--) dates.push(shiftDateString(today, -i));
+
+  const spentByDate = getEnergySpentByDate(start, today);
+  const ratingByDate = new Map(getDayLogsBetween(start, today).map((log) => [log.date, log.rating]));
+  const fallback = getDefaultBudget();
+
+  const records: DayRecord[] = dates.map((date) => ({
+    date,
+    budget: getBudgetForDate(date) ?? fallback,
+    spent: spentByDate[date] ?? 0,
+    rating: ratingByDate.get(date) ?? null,
+  }));
+
+  // Days the user never opened the app have no budget and no spend; averaging them
+  // in would drag every figure toward zero.
+  const active = records.filter((r) => r.spent > 0 || ratingByDate.has(r.date));
+  const average = (values: number[]) =>
+    values.length === 0 ? null : values.reduce((a, b) => a + b, 0) / values.length;
+
+  return {
+    payback: analysePayback(records),
+    categories: rankCategoryLoad(getEnergySpentByCategory(start, today)),
+    avgCapacity: average(active.map((r) => r.budget)),
+    avgSpent: average(active.map((r) => r.spent)),
+  };
 }
 
 export function loadUsageTrend(days: number, today: string): DayUsage[] {

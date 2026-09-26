@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { DayOfWeek, ScheduleType, Task } from "../types";
+import { DayOfWeek, DayRating, ScheduleType, Task } from "../types";
 import {
+  analysePayback,
   buildDayStatus,
   buildUsageTrend,
   capacityOptions,
   computeStreak,
+  DayRecord,
+  describePayback,
+  rankCategoryLoad,
   groupByTimeOfDay,
   dueInfoFor,
   intervalDueFrom,
@@ -63,6 +67,119 @@ describe("isDueOn", () => {
   it("treats a one-off as due until it is done", () => {
     const once = { scheduleType: "once" as ScheduleType, daysOfWeek: MON_WED_FRI, intervalDays: null, createdAt: CREATED };
     assert.equal(isDueOn(once, none, SATURDAY), true);
+  });
+});
+
+describe("analysePayback", () => {
+  const day = (
+    date: string,
+    spent: number,
+    rating: DayRating | null,
+    budget = 10
+  ): DayRecord => ({ date, budget, spent, rating });
+
+  it("says nothing from a single overspend", () => {
+    // One coincidence is not a pattern, and this is health-adjacent enough that
+    // overstating it would be worse than staying quiet.
+    const records = [day("2026-09-01", 14, null), day("2026-09-02", 5, 2)];
+    const insight = analysePayback(records);
+    assert.equal(insight.hasEnoughData, false);
+    assert.match(describePayback(insight), /Not enough to compare/);
+  });
+
+  it("asks for ratings when there are none at all", () => {
+    const insight = analysePayback([day("2026-09-01", 14, null)]);
+    assert.equal(insight.ratedDays, 0);
+    assert.match(describePayback(insight), /Rate how your days go/);
+  });
+
+  it("compares the days after overspending against the days after staying within", () => {
+    const records = [
+      day("2026-09-01", 14, 4), // over
+      day("2026-09-02", 4, 2),
+      day("2026-09-03", 15, 3), // over
+      day("2026-09-04", 4, 1),
+      day("2026-09-05", 13, 3), // over
+      day("2026-09-06", 4, 2),
+      day("2026-09-07", 5, 5), // within
+      day("2026-09-08", 5, 5),
+      day("2026-09-09", 5, 4),
+    ];
+    const insight = analysePayback(records);
+    assert.equal(insight.overBudgetDays, 3);
+    assert.equal(insight.comparableOverBudgetDays, 3);
+    assert.equal(insight.hasEnoughData, true);
+    assert.ok(
+      (insight.avgRatingAfterOverBudget as number) <
+        (insight.avgRatingAfterWithinBudget as number),
+      "overspending should look worse in this data"
+    );
+    assert.match(describePayback(insight), /after going over budget/i);
+  });
+
+  it("reports no payback when overspending isn't followed by worse days", () => {
+    const records = [
+      day("2026-09-01", 14, 4),
+      day("2026-09-02", 4, 4),
+      day("2026-09-03", 15, 4),
+      day("2026-09-04", 4, 4),
+      day("2026-09-05", 13, 4),
+      day("2026-09-06", 4, 4),
+      day("2026-09-07", 4, 4),
+    ];
+    const insight = analysePayback(records);
+    assert.equal(insight.hasEnoughData, true);
+    assert.equal(insight.paybackDays, 0);
+    assert.match(describePayback(insight), /hasn't been followed by worse days/);
+  });
+
+  it("only counts overspends that have a rated day after them", () => {
+    // The final day is over budget but nothing follows it in the window.
+    const records = [day("2026-09-01", 4, 3), day("2026-09-02", 99, null)];
+    const insight = analysePayback(records);
+    assert.equal(insight.overBudgetDays, 1);
+    assert.equal(insight.comparableOverBudgetDays, 0);
+  });
+
+  it("treats spending exactly the budget as within it", () => {
+    const insight = analysePayback([day("2026-09-01", 10, 3), day("2026-09-02", 10, 3)]);
+    assert.equal(insight.overBudgetDays, 0);
+  });
+
+  it("looks the configured number of days ahead", () => {
+    // Rating sits 2 days after the overspend, so a 1-day lag must not see it.
+    const records = [day("2026-09-01", 14, null), day("2026-09-02", 4, null), day("2026-09-03", 4, 1)];
+    assert.equal(analysePayback(records, 1).comparableOverBudgetDays, 0);
+    assert.equal(analysePayback(records, 2).comparableOverBudgetDays, 1);
+  });
+
+  it("handles an empty window", () => {
+    const insight = analysePayback([]);
+    assert.equal(insight.overallAvgRating, null);
+    assert.equal(insight.hasEnoughData, false);
+  });
+});
+
+describe("rankCategoryLoad", () => {
+  it("orders heaviest first", () => {
+    assert.deepEqual(
+      rankCategoryLoad([
+        { category: "rest", spent: 3 },
+        { category: "movement", spent: 9 },
+        { category: "social", spent: 5 },
+      ]).map((c) => c.category),
+      ["movement", "social", "rest"]
+    );
+  });
+
+  it("breaks ties by name so ordering is stable", () => {
+    assert.deepEqual(
+      rankCategoryLoad([
+        { category: "zeta", spent: 4 },
+        { category: "alpha", spent: 4 },
+      ]).map((c) => c.category),
+      ["alpha", "zeta"]
+    );
   });
 });
 

@@ -351,6 +351,21 @@ function rowToDayLog(row: any): DayLog {
   };
 }
 
+/** Energy spent per task category over a date range, for the load breakdown. */
+export function getEnergySpentByCategory(
+  startDate: string,
+  endDate: string
+): { category: string; spent: number }[] {
+  return db.getAllSync<any>(
+    `SELECT tasks.category as category, SUM(tasks.energyCost) as spent
+     FROM completions
+     JOIN tasks ON tasks.id = completions.taskId
+     WHERE completions.date BETWEEN ? AND ?
+     GROUP BY tasks.category`,
+    [startDate, endDate]
+  );
+}
+
 // ---- Settings (e.g. default budget) ----
 
 export function getSetting(key: string): string | null {

@@ -1,13 +1,15 @@
 import { useCallback, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { DayUsage, todayDateString } from "../db/logic";
-import { loadUsageTrend } from "../db/selectors";
+import { DayUsage, describePayback, todayDateString } from "../db/logic";
+import { Insights, loadInsights, loadUsageTrend } from "../db/selectors";
 import { useScreenPadding } from "../hooks/useScreenPadding";
 import { Palette, useThemedStyles } from "../theme";
 import { parseDateString } from "../utils/date";
 
 const WINDOW_DAYS = 14;
+/** Wider than the chart: payback needs enough overspends with ratings after them. */
+const INSIGHT_DAYS = 30;
 const CHART_HEIGHT = 140;
 const BAR_WIDTH = 28;
 
@@ -16,10 +18,13 @@ export default function StatsScreen() {
   const styles = useThemedStyles(createStyles);
   const { paddingTop } = useScreenPadding();
   const [trend, setTrend] = useState<DayUsage[]>([]);
+  const [insights, setInsights] = useState<Insights | null>(null);
 
   useFocusEffect(
     useCallback(() => {
-      setTrend(loadUsageTrend(WINDOW_DAYS, todayDateString()));
+      const today = todayDateString();
+      setTrend(loadUsageTrend(WINDOW_DAYS, today));
+      setInsights(loadInsights(INSIGHT_DAYS, today));
     }, [])
   );
 
@@ -36,7 +41,10 @@ export default function StatsScreen() {
   const maxScale = Math.max(1, ...trend.map((d) => Math.max(d.budget, d.spent)));
 
   return (
-    <View style={[styles.container, { paddingTop }]}>
+    <ScrollView
+      style={[styles.container, { paddingTop }]}
+      contentContainerStyle={styles.scrollContent}
+    >
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
           <Text style={styles.backButton}>‹ Back</Text>
@@ -74,6 +82,79 @@ export default function StatsScreen() {
           <Text style={styles.legendText}>Spent (over budget)</Text>
         </View>
       </View>
+
+      {insights && <InsightsSection insights={insights} />}
+    </ScrollView>
+  );
+}
+
+function InsightsSection({ insights }: { insights: Insights }) {
+  const styles = useThemedStyles(createStyles);
+  const { payback, categories, avgCapacity, avgSpent } = insights;
+  const heaviest = categories.slice(0, 4);
+  const totalCategorySpend = categories.reduce((sum, c) => sum + c.spent, 0);
+
+  return (
+    <View style={styles.insights}>
+      <Text style={styles.insightHeading}>Last {INSIGHT_DAYS} days</Text>
+
+      <View style={styles.insightRow}>
+        <Text style={styles.insightLabel}>Usual capacity</Text>
+        <Text style={styles.insightValue}>
+          {avgCapacity === null ? "—" : avgCapacity.toFixed(1)}
+        </Text>
+      </View>
+      <View style={styles.insightRow}>
+        <Text style={styles.insightLabel}>Usually spent</Text>
+        <Text style={styles.insightValue}>
+          {avgSpent === null ? "—" : avgSpent.toFixed(1)}
+        </Text>
+      </View>
+      <View style={styles.insightRow}>
+        <Text style={styles.insightLabel}>Days over budget</Text>
+        <Text style={styles.insightValue}>{payback.overBudgetDays}</Text>
+      </View>
+      <View style={styles.insightRow}>
+        <Text style={styles.insightLabel}>Days rated</Text>
+        <Text style={styles.insightValue}>{payback.ratedDays}</Text>
+      </View>
+
+      <Text style={styles.insightHeading}>Does overspending catch up?</Text>
+      <Text style={styles.insightBody}>{describePayback(payback)}</Text>
+      {payback.hasEnoughData && (
+        <Text style={styles.insightCaveat}>
+          A pattern in your own numbers, not a diagnosis — plenty else affects how a
+          day goes.
+        </Text>
+      )}
+
+      {heaviest.length > 0 && (
+        <>
+          <Text style={styles.insightHeading}>Where the energy goes</Text>
+          {heaviest.map((entry) => (
+            <View key={entry.category} style={styles.barRow}>
+              <Text style={styles.barLabel} numberOfLines={1}>
+                {entry.category}
+              </Text>
+              <View style={styles.barTrackH}>
+                <View
+                  style={[
+                    styles.barFill,
+                    {
+                      width: `${
+                        totalCategorySpend === 0
+                          ? 0
+                          : Math.round((entry.spent / totalCategorySpend) * 100)
+                      }%`,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={styles.barValue}>{entry.spent}</Text>
+            </View>
+          ))}
+        </>
+      )}
     </View>
   );
 }
@@ -189,4 +270,35 @@ const createStyles = (palette: Palette) =>
   spentSwatch: { backgroundColor: palette.chartSpent },
   overSwatch: { backgroundColor: palette.chartOver },
   legendText: { fontSize: 12, color: palette.textSecondary },
+  scrollContent: { paddingBottom: 40 },
+  insights: { paddingHorizontal: 16, marginTop: 32 },
+  insightHeading: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: palette.textPrimary,
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  insightRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.borderSubtle,
+  },
+  insightLabel: { fontSize: 14, color: palette.textSecondary },
+  insightValue: { fontSize: 14, fontWeight: "600", color: palette.textPrimary },
+  insightBody: { fontSize: 14, color: palette.textSecondary, lineHeight: 20 },
+  insightCaveat: { fontSize: 12, color: palette.textMuted, lineHeight: 17, marginTop: 8 },
+  barRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 },
+  barLabel: { fontSize: 13, color: palette.textSecondary, width: 82 },
+  barTrackH: {
+    flex: 1,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: palette.borderSubtle,
+    overflow: "hidden",
+  },
+  barFill: { height: 8, borderRadius: 4, backgroundColor: palette.chartSpent },
+  barValue: { fontSize: 12, color: palette.textMuted, width: 28, textAlign: "right" },
   });
