@@ -3,7 +3,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { useNavigation } from "@react-navigation/native";
 
 import { applyBackup, exportBackup, pickBackup } from "../backup";
-import { describeBundle } from "../components/BuildBadge";
+import { describeBundle, describeRuntime } from "../components/BuildBadge";
 import { useScreenPadding } from "../hooks/useScreenPadding";
 import { syncAllReminders } from "../reminders";
 import { Palette, ThemePreference, useTheme, useThemedStyles } from "../theme";
@@ -36,7 +36,13 @@ export default function SettingsScreen() {
         );
         return;
       case "none":
-        Alert.alert("Up to date", "You're already running the latest published update.");
+        // Careful wording: the server only offers updates matching this build's
+        // runtime, so "no update" means none *compatible*, which is not the same
+        // as none published.
+        Alert.alert(
+          "Nothing new to install",
+          `You have the newest update built for this version of the app (runtime ${describeRuntime()}).\n\nIf you were expecting a change, it may have been published against a different runtime, which needs a new build rather than an update.`
+        );
         return;
       case "error":
         Alert.alert("Couldn't check for updates", result.error);

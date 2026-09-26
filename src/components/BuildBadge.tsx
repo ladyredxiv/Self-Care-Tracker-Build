@@ -23,6 +23,22 @@ export default function BuildBadge() {
   );
 }
 
+/**
+ * Runtime version of this build, abbreviated.
+ *
+ * Surfaced because a runtime mismatch is otherwise undiagnosable from the phone:
+ * an update published against a different fingerprint is silently never delivered,
+ * and the app can only report "up to date" without being able to say what it is up
+ * to date *with*.
+ */
+export function describeRuntime(): string {
+  try {
+    return Updates.runtimeVersion ? Updates.runtimeVersion.slice(0, 8) : "dev";
+  } catch {
+    return "unknown";
+  }
+}
+
 export function describeBundle(): string {
   try {
     const prefix = Updates.channel ? `${Updates.channel} · ` : "";
