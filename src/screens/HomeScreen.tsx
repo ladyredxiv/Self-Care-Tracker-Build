@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  AppState,
   View,
   Text,
   StyleSheet,
@@ -19,6 +20,7 @@ import {
 import BuildBadge from "../components/BuildBadge";
 import { groupByTimeOfDay, todayDateString } from "../db/logic";
 import { loadDayStatus } from "../db/selectors";
+import { clearReminderForCompletion, syncRemindersForTask } from "../reminders";
 import { TaskWithStatus, TimeOfDay } from "../types";
 import { formatTimeLabel } from "../utils/time";
 
@@ -39,7 +41,8 @@ interface TaskSection {
 
 export default function HomeScreen() {
   const navigation = useNavigation<any>();
-  const today = todayDateString();
+  const [today, setToday] = useState(todayDateString);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [budget, setBudget] = useState(0);
   const [budgetInput, setBudgetInput] = useState("");
   const [spent, setSpent] = useState(0);
@@ -53,13 +56,25 @@ export default function HomeScreen() {
     setSpent(status.spent);
     setRemaining(status.remaining);
     setTasks(status.tasks);
-  }, [today]);
+  }, [today, refreshKey]);
 
   useFocusEffect(
     useCallback(() => {
       load();
     }, [load])
   );
+
+  // Reloading when the app comes forward catches completions made from a
+  // notification's "Mark done" button, and re-reads the date so an app left open
+  // overnight doesn't keep showing yesterday.
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      setToday(todayDateString());
+      setRefreshKey((key) => key + 1);
+    });
+    return () => subscription.remove();
+  }, []);
 
   const saveBudget = () => {
     const value = parseInt(budgetInput, 10);
@@ -77,8 +92,12 @@ export default function HomeScreen() {
   const toggleComplete = (task: TaskWithStatus) => {
     if (task.completedToday) {
       uncompleteTask(task.id, today);
+      // Re-arm, so undoing a completion brings today's reminder back.
+      void syncRemindersForTask(task.id);
     } else {
       completeTask(task.id, today);
+      // Stop today's reminder nagging about something already done.
+      void clearReminderForCompletion(task.id, today);
     }
     load();
   };

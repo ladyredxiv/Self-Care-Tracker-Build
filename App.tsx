@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StatusBar } from "expo-status-bar";
+import * as Notifications from "expo-notifications";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { getAllTasks, initDatabase } from "./src/db/database";
+import { completeTask, initDatabase } from "./src/db/database";
 import {
+  COMPLETE_ACTION_ID,
   requestNotificationPermissions,
-  rescheduleAllReminders,
   setupNotifications,
 } from "./src/notifications";
+import { syncAllReminders, syncRemindersForTask } from "./src/reminders";
 import HomeScreen from "./src/screens/HomeScreen";
 import TaskFormScreen from "./src/screens/TaskFormScreen";
 import StatsScreen from "./src/screens/StatsScreen";
@@ -30,13 +32,15 @@ export default function App() {
         await setupNotifications();
         const granted = await requestNotificationPermissions();
         if (granted) {
-          await rescheduleAllReminders(getAllTasks());
+          await syncAllReminders();
         }
       } catch (err) {
         console.warn("Notification setup failed:", err);
       }
     })();
   }, [ready]);
+
+  useNotificationActions(ready);
 
   if (!ready) return null;
 
@@ -55,4 +59,37 @@ export default function App() {
       <StatusBar style="auto" />
     </NavigationContainer>
   );
+}
+
+/**
+ * Applies the "Mark done" button on a reminder.
+ *
+ * useLastNotificationResponse rather than an event listener, because it also
+ * reports the response that launched the app from cold — which is the common case
+ * here, since the action foregrounds the app.
+ */
+function useNotificationActions(ready: boolean) {
+  const response = Notifications.useLastNotificationResponse();
+  // The hook keeps returning the same response, so completions must not be re-run
+  // on every render.
+  const handled = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!ready || !response) return;
+
+    const request = response.notification.request;
+    const key = `${request.identifier}:${response.actionIdentifier}`;
+    if (handled.current === key) return;
+    handled.current = key;
+
+    if (response.actionIdentifier !== COMPLETE_ACTION_ID) return;
+
+    const data = request.content.data as { taskId?: unknown; date?: unknown } | null;
+    if (typeof data?.taskId !== "number" || typeof data?.date !== "string") return;
+
+    // Completes the day the reminder was *for*, which may not be today if the
+    // notification sat unattended.
+    completeTask(data.taskId, data.date);
+    void syncRemindersForTask(data.taskId);
+  }, [ready, response]);
 }

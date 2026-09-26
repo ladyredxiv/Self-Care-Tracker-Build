@@ -6,6 +6,7 @@
 
 import { DayOfWeek, Task, TaskWithStatus, TimeOfDay } from "../types";
 import { addDays, dayOfWeekFor, parseDateString, toDateString } from "../utils/date";
+import { parseTimeString } from "../utils/time";
 
 /** Safety bound so a malformed daysOfWeek array can't spin the streak walk forever. */
 const MAX_STREAK_LOOKBACK_DAYS = 3650;
@@ -121,6 +122,52 @@ export function buildDayStatus(input: DayStatusInput): DayStatus {
     }));
 
   return { tasks: [...scheduled, ...unscheduled], budget, spent, remaining };
+}
+
+export interface PlannedReminder {
+  /** Local date the reminder belongs to, "YYYY-MM-DD". */
+  date: string;
+  /** Exact local moment to fire. */
+  at: Date;
+}
+
+/**
+ * The reminders that should currently be armed for a task, as concrete one-shot
+ * moments rather than an OS-level repeating rule.
+ *
+ * Repeating triggers can't be suppressed for a single day — cancelling one
+ * removes it forever — which is why a completed task used to keep nagging. Planning
+ * discrete occurrences means today's can be cancelled on completion while the rest
+ * stay armed. The cost is that the window has to be topped up when the app runs,
+ * which is why the horizon is days rather than hours.
+ *
+ * Skips days the task isn't scheduled for, days already completed, and times that
+ * have already passed.
+ */
+export function plannedReminders(
+  task: Pick<Task, "daysOfWeek" | "reminderEnabled" | "reminderTime">,
+  completedDates: ReadonlySet<string>,
+  from: Date,
+  horizonDays: number
+): PlannedReminder[] {
+  if (!task.reminderEnabled || !task.reminderTime) return [];
+
+  const time = parseTimeString(task.reminderTime);
+  if (!time) return [];
+
+  const planned: PlannedReminder[] = [];
+  for (let offset = 0; offset < horizonDays; offset++) {
+    const date = toDateString(addDays(from, offset));
+    if (!isScheduledOn(task, date)) continue;
+    if (completedDates.has(date)) continue;
+
+    const at = parseDateString(date);
+    at.setHours(time.hour, time.minute, 0, 0);
+    if (at.getTime() <= from.getTime()) continue;
+
+    planned.push({ date, at });
+  }
+  return planned;
 }
 
 /** Display order for time-of-day groups; "anytime" trails as the catch-all. */

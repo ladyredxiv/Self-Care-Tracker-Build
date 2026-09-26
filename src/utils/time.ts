@@ -1,3 +1,13 @@
+/** Parses "HH:MM" into its parts, or null if it isn't a valid 24-hour time. */
+export function parseTimeString(time: string): { hour: number; minute: number } | null {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
+  if (!match) return null;
+  const hour = parseInt(match[1], 10);
+  const minute = parseInt(match[2], 10);
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  return { hour, minute };
+}
+
 export function timeStringToDate(time: string): Date {
   const [hour, minute] = time.split(":").map((n) => parseInt(n, 10));
   const date = new Date();

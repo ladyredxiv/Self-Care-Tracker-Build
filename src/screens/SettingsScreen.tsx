@@ -4,8 +4,7 @@ import { useNavigation } from "@react-navigation/native";
 
 import { applyBackup, exportBackup, pickBackup } from "../backup";
 import { describeBundle } from "../components/BuildBadge";
-import { getAllTasks } from "../db/database";
-import { rescheduleAllReminders } from "../notifications";
+import { syncAllReminders } from "../reminders";
 import { applyUpdate, checkAndFetchUpdate } from "../updates";
 import { BackupFile } from "../utils/backupFormat";
 
@@ -85,7 +84,7 @@ export default function SettingsScreen() {
     // Reminders belong to the tasks that just got replaced, so the OS scheduler
     // has to be re-synced against the restored set.
     try {
-      await rescheduleAllReminders(getAllTasks());
+      await syncAllReminders();
     } catch (err) {
       console.warn("Reminder resync after restore failed:", err);
     }

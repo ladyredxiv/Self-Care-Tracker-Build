@@ -8,6 +8,7 @@ import {
   computeStreak,
   groupByTimeOfDay,
   isScheduledOn,
+  plannedReminders,
 } from "./logic";
 
 function makeTask(overrides: Partial<Task> & { id: number }): Task {
@@ -186,6 +187,93 @@ describe("buildDayStatus", () => {
       completedDatesByTask: new Map([[1, new Set(["2026-09-25", "2026-09-24"])]]),
     });
     assert.equal(status.tasks[0].streak, 2);
+  });
+});
+
+describe("plannedReminders", () => {
+  // Friday 2026-09-25 at 07:00 local.
+  const FRIDAY_MORNING = new Date(2026, 8, 25, 7, 0, 0);
+  const reminding = { reminderEnabled: true, reminderTime: "09:00", daysOfWeek: EVERY_DAY };
+
+  it("plans one reminder per day across the horizon", () => {
+    const planned = plannedReminders(reminding, new Set(), FRIDAY_MORNING, 3);
+    assert.deepEqual(
+      planned.map((p) => p.date),
+      ["2026-09-25", "2026-09-26", "2026-09-27"]
+    );
+  });
+
+  it("fires at the task's local reminder time", () => {
+    const [first] = plannedReminders(reminding, new Set(), FRIDAY_MORNING, 1);
+    assert.equal(first.at.getHours(), 9);
+    assert.equal(first.at.getMinutes(), 0);
+    assert.equal(first.at.getDate(), 25);
+  });
+
+  it("skips days already completed", () => {
+    const planned = plannedReminders(reminding, new Set(["2026-09-26"]), FRIDAY_MORNING, 3);
+    assert.deepEqual(
+      planned.map((p) => p.date),
+      ["2026-09-25", "2026-09-27"]
+    );
+  });
+
+  it("skips today when its time has already passed", () => {
+    const evening = new Date(2026, 8, 25, 21, 0, 0);
+    const planned = plannedReminders(reminding, new Set(), evening, 2);
+    assert.deepEqual(
+      planned.map((p) => p.date),
+      ["2026-09-26"]
+    );
+  });
+
+  it("only plans days the task is scheduled for", () => {
+    const planned = plannedReminders(
+      { ...reminding, daysOfWeek: MON_WED_FRI },
+      new Set(),
+      FRIDAY_MORNING,
+      7
+    );
+    assert.deepEqual(
+      planned.map((p) => p.date),
+      ["2026-09-25", "2026-09-28", "2026-09-30"]
+    );
+  });
+
+  it("plans nothing when reminders are off", () => {
+    assert.deepEqual(
+      plannedReminders({ ...reminding, reminderEnabled: false }, new Set(), FRIDAY_MORNING, 5),
+      []
+    );
+  });
+
+  it("plans nothing without a reminder time", () => {
+    assert.deepEqual(
+      plannedReminders({ ...reminding, reminderTime: null }, new Set(), FRIDAY_MORNING, 5),
+      []
+    );
+  });
+
+  it("plans nothing for a malformed reminder time", () => {
+    for (const bad of ["9am", "25:00", "09:60", "", "0900"]) {
+      assert.deepEqual(
+        plannedReminders({ ...reminding, reminderTime: bad }, new Set(), FRIDAY_MORNING, 5),
+        [],
+        `expected "${bad}" to be rejected`
+      );
+    }
+  });
+
+  it("returns nothing for a zero horizon", () => {
+    assert.deepEqual(plannedReminders(reminding, new Set(), FRIDAY_MORNING, 0), []);
+  });
+
+  it("crosses a month boundary correctly", () => {
+    const planned = plannedReminders(reminding, new Set(), new Date(2026, 8, 29, 7, 0, 0), 3);
+    assert.deepEqual(
+      planned.map((p) => p.date),
+      ["2026-09-29", "2026-09-30", "2026-10-01"]
+    );
   });
 });
 

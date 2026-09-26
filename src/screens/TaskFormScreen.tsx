@@ -13,7 +13,8 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { createTask, deleteTask, getTaskById, updateTask } from "../db/database";
-import { cancelTaskReminders, scheduleTaskReminders, requestNotificationPermissions } from "../notifications";
+import { cancelTaskReminders, requestNotificationPermissions } from "../notifications";
+import { syncRemindersForTask } from "../reminders";
 import { DayOfWeek, TimeOfDay } from "../types";
 import { timeStringToDate, dateToTimeString, formatTimeLabel } from "../utils/time";
 
@@ -90,11 +91,9 @@ export default function TaskFormScreen() {
       updateTask(taskId, payload);
     }
 
-    await scheduleTaskReminders({
-      id,
-      ...payload,
-      createdAt: new Date().toISOString(),
-    });
+    // Reads the task back from the database rather than scheduling from the form's
+    // payload, so reminders account for days already completed.
+    await syncRemindersForTask(id);
 
     navigation.goBack();
   };
