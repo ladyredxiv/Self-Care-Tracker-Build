@@ -23,7 +23,12 @@ import CapacityCheckIn from "../components/CapacityCheckIn";
 import DayReflection from "../components/DayReflection";
 import StartHere from "../components/StartHere";
 import { groupByTimeOfDay, partialSpoons, pickStartHere, todayDateString } from "../db/logic";
-import { confirmCapacity, getProgressStyle, loadDayStatus } from "../db/selectors";
+import {
+  confirmCapacity,
+  getProgressStyle,
+  loadDayStatus,
+  loadLastNightSleep,
+} from "../db/selectors";
 import { getDayLog, setDayReflection } from "../db/database";
 import { useScreenPadding } from "../hooks/useScreenPadding";
 import { clearReminderForCompletion, syncRemindersForTask } from "../reminders";
@@ -63,6 +68,7 @@ export default function HomeScreen() {
   // deliberate answer, so it lives in state rather than the database.
   const [checkInHidden, setCheckInHidden] = useState(false);
   const [progressStyle, setProgressStyleState] = useState<ProgressStyle>("recent");
+  const [sleepHours, setSleepHours] = useState<number | null>(null);
 
   const load = useCallback(() => {
     const status = loadDayStatus(today);
@@ -75,6 +81,8 @@ export default function HomeScreen() {
     setProgressStyleState(getProgressStyle());
     // Fire-and-forget: the ongoing readout should track whatever just changed.
     void refreshStatusNotification();
+    // Resolves later, or not at all without Health Connect; purely additive context.
+    void loadLastNightSleep(today).then(setSleepHours).catch(() => setSleepHours(null));
   }, [today, refreshKey]);
 
   useFocusEffect(
@@ -225,6 +233,7 @@ export default function HomeScreen() {
       {showCheckIn && (
         <CapacityCheckIn
           baseline={budget}
+          sleepHours={sleepHours}
           onChoose={chooseCapacity}
           onDismiss={() => setCheckInHidden(true)}
         />

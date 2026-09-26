@@ -4,6 +4,8 @@
  */
 
 import { shiftDateString } from "../utils/date";
+import { readSleepHours } from "../health";
+import { analyseSleep, SleepDay, SleepInsight } from "../utils/sleepInsight";
 import { SummaryInput, TaskSummaryLine } from "../utils/summaryReport";
 import { ProgressStyle, Task } from "../types";
 import {
@@ -145,6 +147,35 @@ export function loadInsights(days: number, today: string): Insights {
     avgCapacity: average(active.map((r) => r.budget)),
     avgSpent: average(active.map((r) => r.spent)),
   };
+}
+
+/**
+ * Sleep context for a window, paired with the day ratings it should be compared
+ * against. Async and separate from loadInsights because Health Connect is a
+ * permissioned native query — Stats renders without it and fills this in when it
+ * arrives, so a slow or absent provider never blocks the screen.
+ */
+export async function loadSleepInsight(days: number, today: string): Promise<SleepInsight> {
+  const from = shiftDateString(today, -(days - 1));
+  const sleepByDate = await readSleepHours(from, today);
+  const ratingByDate = new Map(getDayLogsBetween(from, today).map((l) => [l.date, l.rating]));
+
+  const sleepDays: SleepDay[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const date = shiftDateString(today, -i);
+    sleepDays.push({
+      date,
+      sleepHours: sleepByDate[date] ?? null,
+      rating: ratingByDate.get(date) ?? null,
+    });
+  }
+  return analyseSleep(sleepDays);
+}
+
+/** Hours slept before today, or null when unavailable. */
+export async function loadLastNightSleep(today: string): Promise<number | null> {
+  const sleepByDate = await readSleepHours(today, today);
+  return sleepByDate[today] ?? null;
 }
 
 /** Everything the appointment summary needs, gathered in one pass. */

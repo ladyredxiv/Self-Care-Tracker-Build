@@ -14,6 +14,7 @@ import {
   setStatusNotificationEnabled,
 } from "../db/selectors";
 import { refreshStatusNotification } from "../statusRefresh";
+import { getHealthAvailability, requestSleepPermission } from "../health";
 import { Palette, ThemePreference, useTheme, useThemedStyles } from "../theme";
 import { ProgressStyle } from "../types";
 import { applyUpdate, checkAndFetchUpdate } from "../updates";
@@ -41,6 +42,28 @@ export default function SettingsScreen() {
   const [busy, setBusy] = useState<"export" | "import" | "update" | "summary" | null>(null);
   const [progress, setProgress] = useState<ProgressStyle>(getProgressStyle);
   const [statusEnabled, setStatusEnabled] = useState(isStatusNotificationEnabled);
+
+  const connectSleep = async () => {
+    const availability = await getHealthAvailability();
+    if (availability === "unavailable") {
+      Alert.alert(
+        "Health Connect isn't available",
+        "This needs Health Connect, which is built into Android 14 and later and installable from the Play Store before that."
+      );
+      return;
+    }
+    if (availability === "needsUpdate") {
+      Alert.alert("Health Connect needs updating", "Update it from the Play Store, then try again.");
+      return;
+    }
+    const granted = await requestSleepPermission();
+    Alert.alert(
+      granted ? "Sleep connected" : "Not connected",
+      granted
+        ? "Last night's sleep will show with your check-in, and Trends will compare sleep against how your days go."
+        : "Sleep access wasn't granted, so nothing has changed."
+    );
+  };
 
   const toggleStatus = (enabled: boolean) => {
     setStatusNotificationEnabled(enabled);
@@ -167,6 +190,18 @@ export default function SettingsScreen() {
         A silent, always-there notification showing what's left and what to start
         with, so you can check without opening the app.
       </Text>
+
+      <View style={styles.divider} />
+
+      <Text style={styles.sectionLabel}>Sleep as context</Text>
+      <Text style={styles.sectionBody}>
+        Optional. Shows last night's sleep with your check-in and compares it against
+        how your days go. It never sets your capacity, and it isn't stored by this app
+        or included in backups.
+      </Text>
+      <Pressable style={styles.buttonSecondary} onPress={() => void connectSleep()}>
+        <Text style={styles.buttonSecondaryText}>Connect sleep data</Text>
+      </Pressable>
 
       <View style={styles.divider} />
 

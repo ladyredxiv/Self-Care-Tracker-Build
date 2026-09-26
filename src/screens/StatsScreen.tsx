@@ -2,7 +2,8 @@ import { useCallback, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { DayUsage, describePayback, todayDateString } from "../db/logic";
-import { Insights, loadInsights, loadUsageTrend } from "../db/selectors";
+import { Insights, loadInsights, loadSleepInsight, loadUsageTrend } from "../db/selectors";
+import { describeSleep, formatSleepDuration, SleepInsight } from "../utils/sleepInsight";
 import { useScreenPadding } from "../hooks/useScreenPadding";
 import { Palette, useThemedStyles } from "../theme";
 import { parseDateString } from "../utils/date";
@@ -19,12 +20,16 @@ export default function StatsScreen() {
   const { paddingTop } = useScreenPadding();
   const [trend, setTrend] = useState<DayUsage[]>([]);
   const [insights, setInsights] = useState<Insights | null>(null);
+  const [sleep, setSleep] = useState<SleepInsight | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       const today = todayDateString();
       setTrend(loadUsageTrend(WINDOW_DAYS, today));
       setInsights(loadInsights(INSIGHT_DAYS, today));
+      // Resolves later, or never on a device without Health Connect; the rest of
+      // the screen doesn't wait for it.
+      void loadSleepInsight(INSIGHT_DAYS, today).then(setSleep).catch(() => setSleep(null));
     }, [])
   );
 
@@ -84,6 +89,7 @@ export default function StatsScreen() {
       </View>
 
       {insights && <InsightsSection insights={insights} />}
+      {sleep && sleep.comparableDays > 0 && <SleepSection insight={sleep} />}
     </ScrollView>
   );
 }
@@ -174,6 +180,30 @@ function InsightsSection({ insights }: { insights: Insights }) {
             </View>
           ))}
         </>
+      )}
+    </View>
+  );
+}
+
+function SleepSection({ insight }: { insight: SleepInsight }) {
+  const styles = useThemedStyles(createStyles);
+  return (
+    <View style={styles.insights}>
+      <Text style={styles.insightHeading}>Sleep</Text>
+      <View style={styles.insightRow}>
+        <Text style={styles.insightLabel}>Usual night</Text>
+        <Text style={styles.insightValue}>
+          {insight.averageSleepHours === null
+            ? "—"
+            : formatSleepDuration(insight.averageSleepHours)}
+        </Text>
+      </View>
+      <Text style={styles.insightBody}>{describeSleep(insight)}</Text>
+      {insight.hasEnoughData && (
+        <Text style={styles.insightCaveat}>
+          Read from Health Connect for context only — it never sets your capacity,
+          and it isn't stored by this app or included in backups.
+        </Text>
       )}
     </View>
   );

@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { capacityOptions } from "../db/logic";
 import { Palette, useThemedStyles } from "../theme";
+import { formatSleepDuration } from "../utils/sleepInsight";
 
 /**
  * The morning check-in.
@@ -14,10 +15,15 @@ import { Palette, useThemedStyles } from "../theme";
  */
 export default function CapacityCheckIn({
   baseline,
+  sleepHours,
   onChoose,
   onDismiss,
 }: {
   baseline: number;
+  /** Last night's sleep, when Health Connect has it. Context only — it never
+   * preselects a number, because a wearable's guess shouldn't anchor how you say
+   * you feel. */
+  sleepHours: number | null;
   onChoose: (spoons: number) => void;
   onDismiss: () => void;
 }) {
@@ -29,6 +35,7 @@ export default function CapacityCheckIn({
       <Text style={styles.title}>How many spoons today?</Text>
       <Text style={styles.subtitle}>
         Roughly is fine. You can change it whenever the day turns out different.
+        {sleepHours !== null ? ` You slept about ${formatSleepDuration(sleepHours)}.` : ""}
       </Text>
 
       <View style={styles.row}>
