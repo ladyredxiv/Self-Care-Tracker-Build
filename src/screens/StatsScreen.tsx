@@ -90,7 +90,7 @@ export default function StatsScreen() {
 
 function InsightsSection({ insights }: { insights: Insights }) {
   const styles = useThemedStyles(createStyles);
-  const { payback, categories, avgCapacity, avgSpent } = insights;
+  const { payback, categories, costSuggestions, avgCapacity, avgSpent } = insights;
   const heaviest = categories.slice(0, 4);
   const totalCategorySpend = categories.reduce((sum, c) => sum + c.spent, 0);
 
@@ -126,6 +126,26 @@ function InsightsSection({ insights }: { insights: Insights }) {
           A pattern in your own numbers, not a diagnosis — plenty else affects how a
           day goes.
         </Text>
+      )}
+
+      {costSuggestions.length > 0 && (
+        <>
+          <Text style={styles.insightHeading}>Worth re-costing?</Text>
+          <Text style={styles.insightCaveat}>
+            What these have actually been taking, against what they're set to. Nothing
+            changes unless you edit them.
+          </Text>
+          {costSuggestions.slice(0, 4).map((suggestion) => (
+            <View key={suggestion.taskId} style={styles.insightRow}>
+              <Text style={styles.insightLabel} numberOfLines={1}>
+                {suggestion.name}
+              </Text>
+              <Text style={styles.insightValue}>
+                {suggestion.configuredCost} → {suggestion.averageSpent.toFixed(1)}
+              </Text>
+            </View>
+          ))}
+        </>
       )}
 
       {heaviest.length > 0 && (

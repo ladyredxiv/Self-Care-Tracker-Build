@@ -9,14 +9,15 @@ export const BACKUP_APP_ID = "spoons";
 
 /**
  * 2 added tasks.scheduleType and intervalDays; 3 added day_logs; 4 added
- * tasks.isEssential and allows a negative energyCost for restorative activities.
+ * tasks.isEssential and allows a negative energyCost for restorative activities;
+ * 5 added completions.spoonsSpent.
  *
  * Older backups still restore: restoreSnapshot derives scheduleType from the old
  * isRecurring and daysOfWeek pair, and treats missing dayLogs as empty. The version
  * check exists to stop a NEWER file being fed to a build that predates those
  * columns, where the extra data would be silently dropped.
  */
-export const BACKUP_FORMAT_VERSION = 4;
+export const BACKUP_FORMAT_VERSION = 5;
 
 export interface BackupFile {
   app: typeof BACKUP_APP_ID;

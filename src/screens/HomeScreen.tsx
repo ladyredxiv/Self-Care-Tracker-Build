@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   AppState,
   View,
   Text,
@@ -20,7 +21,7 @@ import {
 import BuildBadge from "../components/BuildBadge";
 import CapacityCheckIn from "../components/CapacityCheckIn";
 import DayReflection from "../components/DayReflection";
-import { groupByTimeOfDay, todayDateString } from "../db/logic";
+import { groupByTimeOfDay, partialSpoons, todayDateString } from "../db/logic";
 import { confirmCapacity, getProgressStyle, loadDayStatus } from "../db/selectors";
 import { getDayLog, setDayReflection } from "../db/database";
 import { useScreenPadding } from "../hooks/useScreenPadding";
@@ -100,6 +101,31 @@ export default function HomeScreen() {
     // Carried forward so tomorrow starts here too; past days keep their own
     // frozen budget, so this no longer rewrites history.
     setSetting(DEFAULT_BUDGET_KEY, String(value));
+    load();
+  };
+
+  /**
+   * Long press offers a reduced completion. "Did a bit of it" is how a lot of
+   * self-care actually happens — sat down for the shower, ate something cold — and
+   * logging it as nothing is both inaccurate and demoralising.
+   */
+  const promptPartial = (task: TaskWithStatus) => {
+    if (task.completedToday) return;
+    const partial = partialSpoons(task.energyCost);
+    if (partial === task.energyCost) {
+      toggleComplete(task);
+      return;
+    }
+    Alert.alert(task.name, "How much of it did you manage?", [
+      { text: "Cancel", style: "cancel" },
+      { text: `A bit of it (${partial})`, onPress: () => complete(task, partial) },
+      { text: `All of it (${task.energyCost})`, onPress: () => complete(task) },
+    ]);
+  };
+
+  const complete = (task: TaskWithStatus, spoons?: number) => {
+    completeTask(task.id, today, spoons);
+    void clearReminderForCompletion(task.id, today);
     load();
   };
 
@@ -221,6 +247,7 @@ export default function HomeScreen() {
           <TaskRow
             task={item}
             onToggle={toggleComplete}
+            onLongPress={promptPartial}
             onEdit={editTask}
             disabled={!section.interactive}
             progressStyle={progressStyle}
@@ -271,12 +298,14 @@ function describeSchedule(task: TaskWithStatus): string {
 function TaskRow({
   task,
   onToggle,
+  onLongPress,
   onEdit,
   disabled,
   progressStyle,
 }: {
   task: TaskWithStatus;
   onToggle: (t: TaskWithStatus) => void;
+  onLongPress: (t: TaskWithStatus) => void;
   onEdit: (t: TaskWithStatus) => void;
   disabled?: boolean;
   progressStyle: ProgressStyle;
@@ -293,6 +322,7 @@ function TaskRow({
       // Dropping onPress rather than setting `disabled` keeps the nested edit
       // button tappable — `disabled` on a Touchable can swallow child touches.
       onPress={disabled ? undefined : () => onToggle(task)}
+      onLongPress={disabled ? undefined : () => onLongPress(task)}
     >
       <View style={{ flex: 1 }}>
         <Text style={styles.taskName}>
@@ -317,7 +347,13 @@ function TaskRow({
         </Text>
       )}
       {blocked && <Text style={styles.blockedTag}>over budget</Text>}
-      {task.completedToday && <Text style={styles.doneTag}>done</Text>}
+      {task.completedToday && (
+        <Text style={styles.doneTag}>
+          {task.spoonsSpentToday !== null && task.spoonsSpentToday !== task.energyCost
+            ? `${task.spoonsSpentToday} of ${task.energyCost}`
+            : "done"}
+        </Text>
+      )}
       <Pressable
         hitSlop={10}
         style={styles.editButton}

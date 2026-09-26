@@ -62,10 +62,35 @@ export function initDatabase() {
   ensureColumn("tasks", "reminderTime", "TEXT");
   ensureColumn("tasks", "intervalDays", "INTEGER");
   ensureColumn("tasks", "isEssential", "INTEGER NOT NULL DEFAULT 0");
+  migrateCompletionSpoons();
   migrateToScheduleTypes();
   enforceOneCompletionPerTaskPerDay();
 
   db.execSync(`CREATE INDEX IF NOT EXISTS idx_completions_date ON completions (date)`);
+}
+
+/**
+ * Records what each completion actually cost, instead of inferring it from the
+ * task's present cost.
+ *
+ * Historical spend used to be SUM(tasks.energyCost) joined to the live task row, so
+ * editing a task's cost retroactively rewrote every past day that included it —
+ * flipping days between within-budget and over-budget after the fact, and with them
+ * the classification the payback analysis rests on.
+ *
+ * Existing rows are backfilled from current costs, which is the best available
+ * guess: that is exactly what they already reported, so the migration changes no
+ * displayed number. It only stops future edits from moving the past.
+ */
+function migrateCompletionSpoons() {
+  const added = ensureColumn("completions", "spoonsSpent", "INTEGER");
+  if (!added) return;
+
+  db.execSync(`
+    UPDATE completions
+    SET spoonsSpent = (SELECT energyCost FROM tasks WHERE tasks.id = completions.taskId)
+    WHERE spoonsSpent IS NULL
+  `);
 }
 
 /**
@@ -230,10 +255,42 @@ function rowToTask(row: any): Task {
 
 // ---- Completions ----
 
-export function completeTask(taskId: number, date: string) {
+/**
+ * Logs a completion. `spoonsSpent` allows a reduced amount for "did a bit of it";
+ * omitting it charges the task's current cost.
+ */
+export function completeTask(taskId: number, date: string, spoonsSpent?: number) {
+  const amount = spoonsSpent ?? getTaskById(taskId)?.energyCost ?? 0;
   db.runSync(
-    `INSERT OR IGNORE INTO completions (taskId, date, completedAt) VALUES (?, ?, ?)`,
-    [taskId, date, new Date().toISOString()]
+    `INSERT OR IGNORE INTO completions (taskId, date, completedAt, spoonsSpent) VALUES (?, ?, ?, ?)`,
+    [taskId, date, new Date().toISOString(), amount]
+  );
+}
+
+/** Spoons actually logged per task for a date. */
+export function getSpoonsSpentForDate(date: string): Map<number, number> {
+  const rows = db.getAllSync<any>(
+    `SELECT taskId, spoonsSpent FROM completions WHERE date = ?`,
+    [date]
+  );
+  const byTask = new Map<number, number>();
+  for (const row of rows) {
+    if (typeof row.spoonsSpent === "number") byTask.set(row.taskId, row.spoonsSpent);
+  }
+  return byTask;
+}
+
+/** Average logged cost per task over a range, for cost-calibration suggestions. */
+export function getLoggedCostStats(
+  startDate: string,
+  endDate: string
+): { taskId: number; times: number; averageSpent: number }[] {
+  return db.getAllSync<any>(
+    `SELECT taskId, COUNT(*) as times, AVG(spoonsSpent) as averageSpent
+     FROM completions
+     WHERE date BETWEEN ? AND ? AND spoonsSpent IS NOT NULL
+     GROUP BY taskId`,
+    [startDate, endDate]
   );
 }
 
@@ -296,7 +353,7 @@ export function materializeBudgetForDate(date: string, fallback: number): number
 /** Total energy spent (sum of completed tasks' energy cost) per date, for dates within the given range. */
 export function getEnergySpentByDate(startDate: string, endDate: string): Record<string, number> {
   const rows = db.getAllSync<any>(
-    `SELECT completions.date as date, SUM(tasks.energyCost) as spent
+    `SELECT completions.date as date, SUM(COALESCE(completions.spoonsSpent, tasks.energyCost)) as spent
      FROM completions
      JOIN tasks ON tasks.id = completions.taskId
      WHERE completions.date BETWEEN ? AND ?
@@ -375,7 +432,7 @@ export function getEnergySpentByCategory(
   endDate: string
 ): { category: string; spent: number }[] {
   return db.getAllSync<any>(
-    `SELECT tasks.category as category, SUM(tasks.energyCost) as spent
+    `SELECT tasks.category as category, SUM(COALESCE(completions.spoonsSpent, tasks.energyCost)) as spent
      FROM completions
      JOIN tasks ON tasks.id = completions.taskId
      WHERE completions.date BETWEEN ? AND ?
@@ -464,8 +521,13 @@ export function restoreSnapshot(snapshot: DatabaseSnapshot) {
 
     for (const c of snapshot.completions) {
       db.runSync(
-        `INSERT OR IGNORE INTO completions (taskId, date, completedAt) VALUES (?, ?, ?)`,
-        [c.taskId, c.date, c.completedAt ?? new Date().toISOString()]
+        `INSERT OR IGNORE INTO completions (taskId, date, completedAt, spoonsSpent) VALUES (?, ?, ?, ?)`,
+        [
+          c.taskId,
+          c.date,
+          c.completedAt ?? new Date().toISOString(),
+          typeof c.spoonsSpent === "number" ? c.spoonsSpent : null,
+        ]
       );
     }
 

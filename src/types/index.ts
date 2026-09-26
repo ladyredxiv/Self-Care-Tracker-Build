@@ -44,6 +44,11 @@ export interface Completion {
   taskId: number;
   date: string; // YYYY-MM-DD
   completedAt: string;
+  /**
+   * Spoons this completion actually cost, captured at the time. Recorded rather
+   * than derived from the task so editing a cost can't rewrite history.
+   */
+  spoonsSpent: number | null;
 }
 
 export interface DailyBudget {
@@ -84,6 +89,8 @@ export interface DatabaseSnapshot {
 
 export interface TaskWithStatus extends Task {
   completedToday: boolean;
+  /** Spoons logged today, which may be less than energyCost for a partial. */
+  spoonsSpentToday: number | null;
   fitsRemainingBudget: boolean;
   scheduledToday: boolean;
   streak: number;

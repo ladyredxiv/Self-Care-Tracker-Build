@@ -12,6 +12,8 @@ import {
   getBudgetForDate,
   getCompletionCountsByTask,
   getDayLogsBetween,
+  getLoggedCostStats,
+  getSpoonsSpentForDate,
   getEnergySpentByCategory,
   getCompletedDatesByTask,
   getCompletionsForDate,
@@ -31,8 +33,10 @@ import {
   DayRecord,
   DayStatus,
   DayUsage,
+  CostSuggestion,
   PaybackInsight,
   rankCategoryLoad,
+  suggestCostAdjustments,
 } from "./logic";
 
 /** Used until the user sets a budget of their own. */
@@ -62,6 +66,7 @@ export function loadDayStatus(date: string): DayStatus {
     budget: materializeBudgetForDate(date, getDefaultBudget()),
     completedTaskIds: new Set(getCompletionsForDate(date)),
     completedDatesByTask: getCompletedDatesByTask(),
+    spoonsSpentByTask: getSpoonsSpentForDate(date),
   });
 }
 
@@ -76,6 +81,7 @@ export function setProgressStyle(style: ProgressStyle) {
 
 export interface Insights {
   payback: PaybackInsight;
+  costSuggestions: CostSuggestion[];
   categories: CategoryLoad[];
   avgCapacity: number | null;
   avgSpent: number | null;
@@ -107,8 +113,25 @@ export function loadInsights(days: number, today: string): Insights {
   const average = (values: number[]) =>
     values.length === 0 ? null : values.reduce((a, b) => a + b, 0) / values.length;
 
+  const tasksById = new Map(getAllTasks().map((task) => [task.id, task]));
+  const costSuggestions = suggestCostAdjustments(
+    getLoggedCostStats(start, today).flatMap((row) => {
+      const task = tasksById.get(row.taskId);
+      return task
+        ? [{
+            taskId: row.taskId,
+            name: task.name,
+            configuredCost: task.energyCost,
+            times: row.times,
+            averageSpent: row.averageSpent,
+          }]
+        : [];
+    })
+  );
+
   return {
     payback: analysePayback(records),
+    costSuggestions,
     categories: rankCategoryLoad(getEnergySpentByCategory(start, today)),
     avgCapacity: average(active.map((r) => r.budget)),
     avgSpent: average(active.map((r) => r.spent)),

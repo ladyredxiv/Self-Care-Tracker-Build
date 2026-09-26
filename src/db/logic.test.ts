@@ -17,8 +17,10 @@ import {
   isDueOn,
   isRetiredOneOff,
   lastCompletionBefore,
+  partialSpoons,
   plannedReminders,
   recentCompletionCount,
+  suggestCostAdjustments,
 } from "./logic";
 
 function makeTask(overrides: Partial<Task> & { id: number }): Task {
@@ -159,6 +161,121 @@ describe("analysePayback", () => {
     const insight = analysePayback([]);
     assert.equal(insight.overallAvgRating, null);
     assert.equal(insight.hasEnoughData, false);
+  });
+});
+
+describe("partialSpoons", () => {
+  it("halves an even cost", () => {
+    assert.equal(partialSpoons(4), 2);
+  });
+
+  it("rounds an odd cost", () => {
+    assert.equal(partialSpoons(3), 2);
+    assert.equal(partialSpoons(5), 3);
+  });
+
+  it("never reduces a costed task to nothing", () => {
+    // Doing part of a thing still takes something out of you.
+    assert.equal(partialSpoons(1), 1);
+  });
+
+  it("never exceeds the full cost", () => {
+    for (const cost of [1, 2, 3, 7, 20]) {
+      assert.ok(partialSpoons(cost) <= cost, `partial of ${cost} exceeded it`);
+    }
+  });
+
+  it("restores less for a partial restorative", () => {
+    assert.equal(partialSpoons(-4), -2);
+    assert.equal(partialSpoons(-1), -1);
+  });
+
+  it("leaves a zero-cost task at zero", () => {
+    assert.equal(partialSpoons(0), 0);
+  });
+});
+
+describe("buildDayStatus with logged spoons", () => {
+  it("counts what was logged rather than what the task now costs", () => {
+    // The point of recording per completion: editing a cost must not move history,
+    // and a partial completion must not be charged in full.
+    const tasks = [makeTask({ id: 1, energyCost: 6 })];
+    const status = buildDayStatus({
+      tasks,
+      date: FRIDAY,
+      budget: 10,
+      completedTaskIds: new Set([1]),
+      completedDatesByTask: new Map(),
+      spoonsSpentByTask: new Map([[1, 3]]),
+    });
+    assert.equal(status.spent, 3);
+    assert.equal(status.remaining, 7);
+    assert.equal(status.tasks[0].spoonsSpentToday, 3);
+  });
+
+  it("falls back to the task's cost when nothing was logged", () => {
+    const tasks = [makeTask({ id: 1, energyCost: 6 })];
+    const status = buildDayStatus({
+      tasks,
+      date: FRIDAY,
+      budget: 10,
+      completedTaskIds: new Set([1]),
+      completedDatesByTask: new Map(),
+    });
+    assert.equal(status.spent, 6);
+    assert.equal(status.tasks[0].spoonsSpentToday, 6);
+  });
+
+  it("reports no logged spoons for an uncompleted task", () => {
+    const tasks = [makeTask({ id: 1, energyCost: 6 })];
+    const status = buildDayStatus({
+      tasks,
+      date: FRIDAY,
+      budget: 10,
+      completedTaskIds: new Set(),
+      completedDatesByTask: new Map(),
+    });
+    assert.equal(status.tasks[0].spoonsSpentToday, null);
+  });
+});
+
+describe("suggestCostAdjustments", () => {
+  const entry = (overrides: Partial<Parameters<typeof suggestCostAdjustments>[0][0]> = {}) => ({
+    taskId: 1,
+    name: "shower",
+    configuredCost: 3,
+    times: 5,
+    averageSpent: 4.4,
+    ...overrides,
+  });
+
+  it("flags a task whose logged cost has drifted", () => {
+    const [suggestion] = suggestCostAdjustments([entry()]);
+    assert.equal(suggestion.name, "shower");
+    assert.equal(suggestion.averageSpent, 4.4);
+  });
+
+  it("stays quiet below the sample threshold", () => {
+    assert.deepEqual(suggestCostAdjustments([entry({ times: 2 })]), []);
+  });
+
+  it("stays quiet for drift under a whole spoon", () => {
+    assert.deepEqual(suggestCostAdjustments([entry({ averageSpent: 3.6 })]), []);
+  });
+
+  it("flags tasks that cost less than expected too", () => {
+    assert.equal(suggestCostAdjustments([entry({ averageSpent: 1.5 })]).length, 1);
+  });
+
+  it("orders by how far off the estimate is", () => {
+    const suggestions = suggestCostAdjustments([
+      entry({ taskId: 1, name: "small drift", averageSpent: 4.2 }),
+      entry({ taskId: 2, name: "big drift", averageSpent: 8 }),
+    ]);
+    assert.deepEqual(
+      suggestions.map((s) => s.name),
+      ["big drift", "small drift"]
+    );
   });
 });
 

@@ -188,6 +188,12 @@ export interface DayStatusInput {
   budget: number;
   completedTaskIds: ReadonlySet<number>;
   completedDatesByTask: ReadonlyMap<number, ReadonlySet<string>>;
+  /**
+   * Spoons actually logged today per task, which can be less than the task's cost
+   * when only part of it got done. Falls back to the task's cost when absent, so a
+   * completion recorded before this was tracked still counts correctly.
+   */
+  spoonsSpentByTask?: ReadonlyMap<number, number>;
 }
 
 export interface DayStatus {
@@ -212,7 +218,9 @@ export interface DayStatus {
  * even that, so medication can't be crowded out by a neglected chore.
  */
 export function buildDayStatus(input: DayStatusInput): DayStatus {
-  const { date, budget, completedTaskIds, completedDatesByTask } = input;
+  const { date, budget, completedTaskIds, completedDatesByTask, spoonsSpentByTask } = input;
+
+  const spoonsSpentFor = (task: Task) => spoonsSpentByTask?.get(task.id) ?? task.energyCost;
 
   const completedDatesFor = (task: Task) =>
     completedDatesByTask.get(task.id) ?? new Set<string>();
@@ -222,9 +230,11 @@ export function buildDayStatus(input: DayStatusInput): DayStatus {
     (task) => !isRetiredOneOff(task, completedDatesFor(task), date)
   );
 
+  // Sums what was actually logged rather than what each task currently costs, so a
+  // partial completion is reflected and editing a cost doesn't move today's total.
   const spent = tasks
     .filter((t) => completedTaskIds.has(t.id))
-    .reduce((sum, t) => sum + t.energyCost, 0);
+    .reduce((sum, t) => sum + spoonsSpentFor(t), 0);
   const remaining = budget - spent;
 
   // Streaks only mean something for a fixed cadence. An interval task's "streak"
@@ -267,6 +277,7 @@ export function buildDayStatus(input: DayStatusInput): DayStatus {
         completedToday,
         fitsRemainingBudget,
         scheduledToday: true,
+        spoonsSpentToday: completedToday ? spoonsSpentFor(task) : null,
         streak: streakFor(task),
         recentCompletions: recentCompletionCount(completedDatesFor(task), date),
         daysWaiting: due.daysWaiting,
@@ -280,6 +291,7 @@ export function buildDayStatus(input: DayStatusInput): DayStatus {
       completedToday: false,
       fitsRemainingBudget: false,
       scheduledToday: false,
+      spoonsSpentToday: null,
       streak: streakFor(task),
       recentCompletions: recentCompletionCount(completedDatesFor(task), date),
       daysWaiting: due.daysWaiting,
@@ -422,6 +434,55 @@ export interface CategoryLoad {
 /** Energy spent per category, heaviest first. */
 export function rankCategoryLoad(entries: CategoryLoad[]): CategoryLoad[] {
   return [...entries].sort((a, b) => b.spent - a.spent || a.category.localeCompare(b.category));
+}
+
+/**
+ * What "did a bit of it" charges: half, rounded, and never nothing for a task that
+ * costs something — doing part of a thing still takes something out of you.
+ */
+export function partialSpoons(energyCost: number): number {
+  if (energyCost === 0) return 0;
+  const half = Math.round(energyCost / 2);
+  if (energyCost > 0) return Math.max(1, Math.min(half, energyCost));
+  return Math.min(-1, Math.max(half, energyCost));
+}
+
+export interface CostSuggestion {
+  taskId: number;
+  name: string;
+  configuredCost: number;
+  averageSpent: number;
+  times: number;
+}
+
+/** Fewest loggings before a task's average is worth mentioning. */
+export const MIN_SAMPLE_FOR_COST_SUGGESTION = 3;
+
+/**
+ * Tasks whose logged cost has drifted from their configured cost by a whole spoon
+ * or more. Only a prompt to reconsider the estimate — nothing is changed
+ * automatically, because the user's own number is the point of the system.
+ */
+export function suggestCostAdjustments(
+  entries: { taskId: number; name: string; configuredCost: number; times: number; averageSpent: number }[]
+): CostSuggestion[] {
+  return entries
+    .filter(
+      (entry) =>
+        entry.times >= MIN_SAMPLE_FOR_COST_SUGGESTION &&
+        Math.abs(entry.averageSpent - entry.configuredCost) >= 1
+    )
+    .map((entry) => ({
+      taskId: entry.taskId,
+      name: entry.name,
+      configuredCost: entry.configuredCost,
+      averageSpent: entry.averageSpent,
+      times: entry.times,
+    }))
+    .sort(
+      (a, b) =>
+        Math.abs(b.averageSpent - b.configuredCost) - Math.abs(a.averageSpent - a.configuredCost)
+    );
 }
 
 export interface CapacityOption {
