@@ -42,6 +42,7 @@ export default function TaskFormScreen() {
   const [category, setCategory] = useState("general");
   const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>("anytime");
   const [selectedDays, setSelectedDays] = useState<DayOfWeek[]>([]);
+  const [isRecurring, setIsRecurring] = useState(true);
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderTime, setReminderTime] = useState("09:00");
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -55,6 +56,7 @@ export default function TaskFormScreen() {
     setCategory(task.category);
     setTimeOfDay(task.timeOfDay);
     setSelectedDays(task.daysOfWeek);
+    setIsRecurring(task.isRecurring);
     setReminderEnabled(task.reminderEnabled);
     setReminderTime(task.reminderTime ?? "09:00");
   }, [isEditing, taskId]);
@@ -82,8 +84,10 @@ export default function TaskFormScreen() {
       energyCost: cost,
       category: category.trim() || "general",
       timeOfDay,
-      daysOfWeek: selectedDays,
-      isRecurring: true,
+      // Weekday selections are irrelevant to a one-off, so they aren't persisted
+      // as stale state on it.
+      daysOfWeek: isRecurring ? selectedDays : [],
+      isRecurring,
       reminderEnabled,
       reminderTime: reminderEnabled ? reminderTime : null,
     };
@@ -163,25 +167,38 @@ export default function TaskFormScreen() {
         ))}
       </View>
 
-      <Text style={styles.label}>Days (leave blank for every day)</Text>
-      <View style={styles.chipRow}>
-        {DAY_LABELS.map(({ label, value }) => (
-          <Pressable
-            key={value}
-            style={[styles.chip, selectedDays.includes(value) && styles.chipSelected]}
-            onPress={() => toggleDay(value)}
-          >
-            <Text
-              style={[
-                styles.chipText,
-                selectedDays.includes(value) && styles.chipTextSelected,
-              ]}
-            >
-              {label}
-            </Text>
-          </Pressable>
-        ))}
+      <View style={styles.reminderRow}>
+        <Text style={styles.label}>Repeats</Text>
+        <Switch value={isRecurring} onValueChange={setIsRecurring} />
       </View>
+
+      {isRecurring ? (
+        <>
+          <Text style={styles.label}>Days (leave blank for every day)</Text>
+          <View style={styles.chipRow}>
+            {DAY_LABELS.map(({ label, value }) => (
+              <Pressable
+                key={value}
+                style={[styles.chip, selectedDays.includes(value) && styles.chipSelected]}
+                onPress={() => toggleDay(value)}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    selectedDays.includes(value) && styles.chipTextSelected,
+                  ]}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      ) : (
+        <Text style={styles.hint}>
+          A one-off stays on your list every day until you finish it, then disappears.
+        </Text>
+      )}
 
       <View style={styles.reminderRow}>
         <Text style={styles.label}>Remind me</Text>
@@ -234,6 +251,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: "white",
   },
+  hint: { fontSize: 13, color: "#8a7b70", lineHeight: 19 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
     paddingHorizontal: 14,

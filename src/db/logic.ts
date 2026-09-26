@@ -15,10 +15,36 @@ export function todayDateString(d: Date = new Date()): string {
   return toDateString(d);
 }
 
-/** An empty daysOfWeek array means "every day". */
-export function isScheduledOn(task: Pick<Task, "daysOfWeek">, date: string): boolean {
+/**
+ * Whether a task belongs to a given day.
+ *
+ * An empty daysOfWeek array means "every day". A one-off task ignores weekdays
+ * entirely — it's outstanding business every day until it gets done.
+ */
+export function isScheduledOn(
+  task: Pick<Task, "daysOfWeek" | "isRecurring">,
+  date: string
+): boolean {
+  if (!task.isRecurring) return true;
   if (task.daysOfWeek.length === 0) return true;
   return task.daysOfWeek.includes(dayOfWeekFor(date));
+}
+
+/**
+ * Whether a one-off task has served its purpose and should vanish.
+ *
+ * A completed one-off still shows on the day it was completed — seeing it ticked
+ * off is the point — but disappears from every later day rather than lingering as
+ * a permanently-done row.
+ */
+export function isRetiredOneOff(
+  task: Pick<Task, "isRecurring">,
+  completedDates: ReadonlySet<string>,
+  date: string
+): boolean {
+  if (task.isRecurring) return false;
+  if (completedDates.size === 0) return false;
+  return !completedDates.has(date);
 }
 
 /**
@@ -82,15 +108,25 @@ export interface DayStatus {
  * the whole budget".
  */
 export function buildDayStatus(input: DayStatusInput): DayStatus {
-  const { tasks, date, budget, completedTaskIds, completedDatesByTask } = input;
+  const { date, budget, completedTaskIds, completedDatesByTask } = input;
+
+  const completedDatesFor = (task: Task) =>
+    completedDatesByTask.get(task.id) ?? new Set<string>();
+
+  // Finished one-offs drop out entirely rather than appearing under "not scheduled".
+  const tasks = input.tasks.filter(
+    (task) => !isRetiredOneOff(task, completedDatesFor(task), date)
+  );
 
   const spent = tasks
     .filter((t) => completedTaskIds.has(t.id))
     .reduce((sum, t) => sum + t.energyCost, 0);
   const remaining = budget - spent;
 
+  // Streaks are meaningless for a one-off, so it reports none and the UI's
+  // "streak > 0" check hides the flame without needing to know why.
   const streakFor = (task: Task) =>
-    computeStreak(completedDatesByTask.get(task.id) ?? new Set<string>(), task.daysOfWeek, date);
+    task.isRecurring ? computeStreak(completedDatesFor(task), task.daysOfWeek, date) : 0;
 
   let runningRemaining = remaining;
   const scheduled = tasks
@@ -145,12 +181,16 @@ export interface PlannedReminder {
  * have already passed.
  */
 export function plannedReminders(
-  task: Pick<Task, "daysOfWeek" | "reminderEnabled" | "reminderTime">,
+  task: Pick<Task, "daysOfWeek" | "isRecurring" | "reminderEnabled" | "reminderTime">,
   completedDates: ReadonlySet<string>,
   from: Date,
   horizonDays: number
 ): PlannedReminder[] {
   if (!task.reminderEnabled || !task.reminderTime) return [];
+
+  // A one-off that's been done is done — no further reminders, ever. Without this
+  // it would keep reminding on every day it wasn't completed on.
+  if (!task.isRecurring && completedDates.size > 0) return [];
 
   const time = parseTimeString(task.reminderTime);
   if (!time) return [];

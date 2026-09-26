@@ -222,6 +222,7 @@ function TaskRow({
         <Text style={styles.taskName}>{task.name}</Text>
         <Text style={styles.taskMeta}>
           {task.energyCost} energy · {task.category}
+          {task.isRecurring ? "" : " · one-off"}
           {task.streak > 0 ? ` · 🔥 ${task.streak}` : ""}
           {task.reminderEnabled && task.reminderTime
             ? ` · ⏰ ${formatTimeLabel(task.reminderTime)}`

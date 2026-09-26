@@ -7,6 +7,7 @@ import {
   buildUsageTrend,
   computeStreak,
   groupByTimeOfDay,
+  isRetiredOneOff,
   isScheduledOn,
   plannedReminders,
 } from "./logic";
@@ -34,14 +35,43 @@ const FRIDAY = "2026-09-25";
 const SATURDAY = "2026-09-26";
 
 describe("isScheduledOn", () => {
+  const repeating = { isRecurring: true };
+
   it("treats an empty daysOfWeek as every day", () => {
-    assert.equal(isScheduledOn({ daysOfWeek: EVERY_DAY }, FRIDAY), true);
-    assert.equal(isScheduledOn({ daysOfWeek: EVERY_DAY }, SATURDAY), true);
+    assert.equal(isScheduledOn({ ...repeating, daysOfWeek: EVERY_DAY }, FRIDAY), true);
+    assert.equal(isScheduledOn({ ...repeating, daysOfWeek: EVERY_DAY }, SATURDAY), true);
   });
 
   it("matches the local weekday", () => {
-    assert.equal(isScheduledOn({ daysOfWeek: MON_WED_FRI }, FRIDAY), true);
-    assert.equal(isScheduledOn({ daysOfWeek: MON_WED_FRI }, SATURDAY), false);
+    assert.equal(isScheduledOn({ ...repeating, daysOfWeek: MON_WED_FRI }, FRIDAY), true);
+    assert.equal(isScheduledOn({ ...repeating, daysOfWeek: MON_WED_FRI }, SATURDAY), false);
+  });
+
+  it("ignores weekdays for a one-off", () => {
+    const oneOff = { isRecurring: false, daysOfWeek: MON_WED_FRI };
+    assert.equal(isScheduledOn(oneOff, FRIDAY), true);
+    assert.equal(isScheduledOn(oneOff, SATURDAY), true);
+  });
+});
+
+describe("isRetiredOneOff", () => {
+  it("never retires a repeating task", () => {
+    assert.equal(
+      isRetiredOneOff({ isRecurring: true }, new Set(["2026-09-24"]), FRIDAY),
+      false
+    );
+  });
+
+  it("keeps an uncompleted one-off around", () => {
+    assert.equal(isRetiredOneOff({ isRecurring: false }, new Set(), FRIDAY), false);
+  });
+
+  it("keeps a one-off visible on the day it was completed", () => {
+    assert.equal(isRetiredOneOff({ isRecurring: false }, new Set([FRIDAY]), FRIDAY), false);
+  });
+
+  it("retires a one-off on days after it was completed", () => {
+    assert.equal(isRetiredOneOff({ isRecurring: false }, new Set([FRIDAY]), SATURDAY), true);
   });
 });
 
@@ -193,7 +223,12 @@ describe("buildDayStatus", () => {
 describe("plannedReminders", () => {
   // Friday 2026-09-25 at 07:00 local.
   const FRIDAY_MORNING = new Date(2026, 8, 25, 7, 0, 0);
-  const reminding = { reminderEnabled: true, reminderTime: "09:00", daysOfWeek: EVERY_DAY };
+  const reminding = {
+    reminderEnabled: true,
+    reminderTime: "09:00",
+    daysOfWeek: EVERY_DAY,
+    isRecurring: true,
+  };
 
   it("plans one reminder per day across the horizon", () => {
     const planned = plannedReminders(reminding, new Set(), FRIDAY_MORNING, 3);
@@ -274,6 +309,98 @@ describe("plannedReminders", () => {
       planned.map((p) => p.date),
       ["2026-09-29", "2026-09-30", "2026-10-01"]
     );
+  });
+
+  it("reminds every day for an uncompleted one-off", () => {
+    const planned = plannedReminders(
+      { ...reminding, isRecurring: false, daysOfWeek: MON_WED_FRI },
+      new Set(),
+      FRIDAY_MORNING,
+      3
+    );
+    assert.deepEqual(
+      planned.map((p) => p.date),
+      ["2026-09-25", "2026-09-26", "2026-09-27"]
+    );
+  });
+
+  it("stops reminding entirely once a one-off is done", () => {
+    // The completed date isn't in the window at all, so a naive
+    // "skip completed days" rule would keep reminding forever.
+    const planned = plannedReminders(
+      { ...reminding, isRecurring: false },
+      new Set(["2026-09-20"]),
+      FRIDAY_MORNING,
+      5
+    );
+    assert.deepEqual(planned, []);
+  });
+});
+
+describe("buildDayStatus with one-off tasks", () => {
+  const noDates = new Map<number, Set<string>>();
+
+  it("shows an uncompleted one-off regardless of weekday", () => {
+    const tasks = [makeTask({ id: 1, isRecurring: false, daysOfWeek: MON_WED_FRI })];
+    const status = buildDayStatus({
+      tasks,
+      date: SATURDAY,
+      budget: 10,
+      completedTaskIds: new Set(),
+      completedDatesByTask: noDates,
+    });
+    assert.equal(status.tasks.length, 1);
+    assert.equal(status.tasks[0].scheduledToday, true);
+  });
+
+  it("still shows a one-off on the day it was completed", () => {
+    const tasks = [makeTask({ id: 1, energyCost: 4, isRecurring: false })];
+    const status = buildDayStatus({
+      tasks,
+      date: FRIDAY,
+      budget: 10,
+      completedTaskIds: new Set([1]),
+      completedDatesByTask: new Map([[1, new Set([FRIDAY])]]),
+    });
+    assert.equal(status.tasks.length, 1);
+    assert.equal(status.tasks[0].completedToday, true);
+    assert.equal(status.spent, 4);
+  });
+
+  it("removes a one-off completed on an earlier day", () => {
+    const tasks = [makeTask({ id: 1, isRecurring: false })];
+    const status = buildDayStatus({
+      tasks,
+      date: SATURDAY,
+      budget: 10,
+      completedTaskIds: new Set(),
+      completedDatesByTask: new Map([[1, new Set([FRIDAY])]]),
+    });
+    assert.deepEqual(status.tasks, []);
+  });
+
+  it("reports no streak for a one-off", () => {
+    const tasks = [makeTask({ id: 1, isRecurring: false })];
+    const status = buildDayStatus({
+      tasks,
+      date: FRIDAY,
+      budget: 10,
+      completedTaskIds: new Set([1]),
+      completedDatesByTask: new Map([[1, new Set([FRIDAY, "2026-09-24"])]]),
+    });
+    assert.equal(status.tasks[0].streak, 0);
+  });
+
+  it("leaves repeating tasks untouched by retirement", () => {
+    const tasks = [makeTask({ id: 1, isRecurring: true })];
+    const status = buildDayStatus({
+      tasks,
+      date: SATURDAY,
+      budget: 10,
+      completedTaskIds: new Set(),
+      completedDatesByTask: new Map([[1, new Set([FRIDAY])]]),
+    });
+    assert.equal(status.tasks.length, 1);
   });
 });
 
