@@ -25,6 +25,12 @@ export interface Task {
   scheduleType: ScheduleType;
   daysOfWeek: DayOfWeek[]; // only meaningful for "weekdays"; empty = every day
   intervalDays: number | null; // only meaningful for "interval"
+  /**
+   * Always gets a spoon: allocated before anything else regardless of cost or how
+   * long other things have waited. For medication, hygiene — the things that
+   * mustn't be crowded out by a long-neglected chore.
+   */
+  isEssential: boolean;
   reminderEnabled: boolean;
   reminderTime: string | null; // "HH:MM", 24-hour, local time
   createdAt: string;

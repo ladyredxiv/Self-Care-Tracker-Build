@@ -29,6 +29,7 @@ function makeTask(overrides: Partial<Task> & { id: number }): Task {
     scheduleType: "daily" as ScheduleType,
     daysOfWeek: [],
     intervalDays: null,
+    isEssential: false,
     reminderEnabled: false,
     reminderTime: null,
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -690,6 +691,85 @@ describe("buildDayStatus priority from waiting time", () => {
       completedDatesByTask: new Map([[1, new Set([FRIDAY, "2026-09-23"])]]),
     });
     assert.equal(status.tasks[0].streak, 0);
+  });
+});
+
+describe("buildDayStatus with essentials and restorative tasks", () => {
+  it("allocates essentials before anything that has been waiting longer", () => {
+    // Meds cost 3 and have waited nothing; laundry costs 4 and has waited 6 days.
+    // Budget of 4 can only cover one, and it has to be the meds.
+    const tasks = [
+      makeTask({ id: 1, name: "meds", energyCost: 3, isEssential: true }),
+      makeTask({ id: 2, name: "laundry", energyCost: 4, scheduleType: "interval", intervalDays: 3 }),
+    ];
+    const status = buildDayStatus({
+      tasks,
+      date: FRIDAY,
+      budget: 4,
+      completedTaskIds: new Set(),
+      completedDatesByTask: new Map([[2, new Set(["2026-09-16"])]]),
+    });
+    assert.deepEqual(
+      status.tasks.map((t) => t.id),
+      [1, 2],
+      "the essential should be ordered first"
+    );
+    assert.equal(status.tasks[0].fitsRemainingBudget, true);
+    assert.equal(status.tasks[1].fitsRemainingBudget, false);
+  });
+
+  it("gives energy back for a restorative task", () => {
+    const tasks = [makeTask({ id: 1, name: "nap", energyCost: -3 })];
+    const status = buildDayStatus({
+      tasks,
+      date: FRIDAY,
+      budget: 5,
+      completedTaskIds: new Set([1]),
+      completedDatesByTask: new Map(),
+    });
+    assert.equal(status.spent, -3);
+    assert.equal(status.remaining, 8);
+  });
+
+  it("keeps a restorative task available even when already over budget", () => {
+    // The naive "cost <= remaining" test gets this backwards: -3 <= -6 is false,
+    // so a nap would be marked unavailable exactly when it's most needed.
+    const tasks = [
+      makeTask({ id: 1, name: "big thing", energyCost: 11 }),
+      makeTask({ id: 2, name: "nap", energyCost: -3 }),
+    ];
+    const status = buildDayStatus({
+      tasks,
+      date: FRIDAY,
+      budget: 5,
+      completedTaskIds: new Set([1]),
+      completedDatesByTask: new Map(),
+    });
+    assert.equal(status.remaining, -6);
+    const nap = status.tasks.find((t) => t.id === 2);
+    assert.equal(nap?.fitsRemainingBudget, true);
+  });
+
+  it("lets a restorative task free up room for other work", () => {
+    const tasks = [
+      makeTask({ id: 1, name: "nap", energyCost: -2 }),
+      makeTask({ id: 2, name: "shop", energyCost: 5 }),
+    ];
+    const status = buildDayStatus({
+      tasks,
+      date: FRIDAY,
+      budget: 4,
+      completedTaskIds: new Set(),
+      completedDatesByTask: new Map(),
+    });
+    // Nap sorts first (cheapest), lifting remaining to 6, so the 5-cost task fits.
+    assert.deepEqual(
+      status.tasks.map((t) => [t.id, t.fitsRemainingBudget]),
+      [
+        [1, true],
+        [2, true],
+      ]
+    );
   });
 });
 

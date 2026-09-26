@@ -278,9 +278,15 @@ function TaskRow({
       onPress={disabled ? undefined : () => onToggle(task)}
     >
       <View style={{ flex: 1 }}>
-        <Text style={styles.taskName}>{task.name}</Text>
+        <Text style={styles.taskName}>
+          {task.name}
+          {task.isEssential ? " ·" : ""}
+          {task.isEssential ? <Text style={styles.essentialTag}> essential</Text> : null}
+        </Text>
         <Text style={styles.taskMeta}>
-          {task.energyCost} energy · {task.category}
+          {task.energyCost < 0
+            ? `+${-task.energyCost} back`
+            : `${task.energyCost} energy`} · {task.category}
           {describeSchedule(task)}
           {task.streak > 0 ? ` · 🔥 ${task.streak}` : ""}
           {task.reminderEnabled && task.reminderTime
@@ -360,6 +366,7 @@ const createStyles = (palette: Palette) =>
   blockedTag: { fontSize: 12, color: palette.warning },
   // Muted rather than alarming: waiting time is a sorting signal, not a telling-off.
   waitingTag: { fontSize: 12, color: palette.textMuted, marginRight: 8 },
+  essentialTag: { fontSize: 12, fontWeight: "400", color: palette.warning },
   doneTag: { fontSize: 12, color: palette.doneText, fontWeight: "600" },
   editButton: { paddingLeft: 12, paddingVertical: 4 },
   editButtonText: { fontSize: 16, color: palette.icon },

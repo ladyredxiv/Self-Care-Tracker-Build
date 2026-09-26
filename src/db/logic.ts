@@ -180,11 +180,12 @@ export interface DayStatus {
  * it — two independent calculations previously disagreed whenever a task was
  * completed and then edited to exclude today.
  *
- * `fitsRemainingBudget` is allocated greedily in priority order: longest-waiting
- * first, then cheapest. The waiting term is what makes overdue work actually win
- * a slot when there isn't enough energy for everything — sorting the display alone
- * would still let cheap daily tasks consume the budget while a shower that's been
- * put off for four days got marked as not fitting.
+ * `fitsRemainingBudget` is allocated greedily in priority order: essentials first,
+ * then longest-waiting, then cheapest. The waiting term is what makes overdue work
+ * actually win a slot when there isn't enough energy for everything — sorting the
+ * display alone would still let cheap daily tasks consume the budget while a shower
+ * that's been put off for four days got marked as not fitting. Essentials outrank
+ * even that, so medication can't be crowded out by a neglected chore.
  */
 export function buildDayStatus(input: DayStatusInput): DayStatus {
   const { date, budget, completedTaskIds, completedDatesByTask } = input;
@@ -221,11 +222,19 @@ export function buildDayStatus(input: DayStatusInput): DayStatus {
     .filter(({ task, due }) => due.isDue || completedTaskIds.has(task.id))
     .sort(
       (a, b) =>
-        b.due.daysWaiting - a.due.daysWaiting || a.task.energyCost - b.task.energyCost
+        Number(b.task.isEssential) - Number(a.task.isEssential) ||
+        b.due.daysWaiting - a.due.daysWaiting ||
+        a.task.energyCost - b.task.energyCost
     )
     .map(({ task, due }) => {
       const completedToday = completedTaskIds.has(task.id);
-      const fitsRemainingBudget = completedToday || task.energyCost <= runningRemaining;
+      const fitsRemainingBudget =
+        completedToday ||
+        // A restorative activity gives energy back, so it's always available — and
+        // most available precisely when the budget is already blown, which a plain
+        // "cost <= remaining" test would get backwards.
+        task.energyCost <= 0 ||
+        task.energyCost <= runningRemaining;
       if (fitsRemainingBudget && !completedToday) {
         runningRemaining -= task.energyCost;
       }

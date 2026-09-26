@@ -60,6 +60,8 @@ export default function TaskFormScreen() {
   const [selectedDays, setSelectedDays] = useState<DayOfWeek[]>([]);
   const [scheduleType, setScheduleType] = useState<ScheduleType>("daily");
   const [intervalDays, setIntervalDays] = useState("2");
+  const [isEssential, setIsEssential] = useState(false);
+  const [isRestorative, setIsRestorative] = useState(false);
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderTime, setReminderTime] = useState("09:00");
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -75,6 +77,10 @@ export default function TaskFormScreen() {
     setSelectedDays(task.daysOfWeek);
     setScheduleType(task.scheduleType);
     setIntervalDays(String(task.intervalDays ?? 2));
+    setIsEssential(task.isEssential);
+    // Stored as a negative cost; the form works in magnitude plus a direction.
+    setIsRestorative(task.energyCost < 0);
+    setEnergyCost(String(Math.abs(task.energyCost)));
     setReminderEnabled(task.reminderEnabled);
     setReminderTime(task.reminderTime ?? "09:00");
   }, [isEditing, taskId]);
@@ -94,8 +100,9 @@ export default function TaskFormScreen() {
   };
 
   const save = async () => {
-    const cost = parseInt(energyCost, 10);
-    if (!name.trim() || Number.isNaN(cost) || cost < 0) return;
+    const magnitude = parseInt(energyCost, 10);
+    if (!name.trim() || Number.isNaN(magnitude) || magnitude < 0) return;
+    const cost = isRestorative ? -magnitude : magnitude;
 
     const interval = parseInt(intervalDays, 10);
     if (scheduleType === "interval" && (Number.isNaN(interval) || interval < 1)) return;
@@ -109,6 +116,7 @@ export default function TaskFormScreen() {
       // Fields belonging to other schedule types aren't persisted as stale state.
       daysOfWeek: scheduleType === "weekdays" ? selectedDays : [],
       intervalDays: scheduleType === "interval" ? interval : null,
+      isEssential,
       reminderEnabled,
       reminderTime: reminderEnabled ? reminderTime : null,
     };
@@ -157,7 +165,7 @@ export default function TaskFormScreen() {
         placeholderTextColor={palette.textMuted}
       />
 
-      <Text style={styles.label}>Energy cost</Text>
+      <Text style={styles.label}>{isRestorative ? "Spoons given back" : "Energy cost"}</Text>
       <TextInput
         style={styles.input}
         value={energyCost}
@@ -166,6 +174,27 @@ export default function TaskFormScreen() {
         placeholder="e.g. 3"
         placeholderTextColor={palette.textMuted}
       />
+
+      <View style={styles.reminderRow}>
+        <Text style={styles.label}>Gives energy back</Text>
+        <Switch value={isRestorative} onValueChange={setIsRestorative} />
+      </View>
+      {isRestorative && (
+        <Text style={styles.hint}>
+          Rest, food, meds, lying down — things that top you up rather than draining
+          you. These stay available even once you're over budget.
+        </Text>
+      )}
+
+      <View style={styles.reminderRow}>
+        <Text style={styles.label}>Essential</Text>
+        <Switch value={isEssential} onValueChange={setIsEssential} />
+      </View>
+      {isEssential && (
+        <Text style={styles.hint}>
+          Always gets a spoon first, however long other things have been waiting.
+        </Text>
+      )}
 
       <Text style={styles.label}>Category</Text>
       <TextInput

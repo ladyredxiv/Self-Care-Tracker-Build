@@ -60,6 +60,7 @@ export function initDatabase() {
   ensureColumn("tasks", "reminderEnabled", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn("tasks", "reminderTime", "TEXT");
   ensureColumn("tasks", "intervalDays", "INTEGER");
+  ensureColumn("tasks", "isEssential", "INTEGER NOT NULL DEFAULT 0");
   migrateToScheduleTypes();
   enforceOneCompletionPerTaskPerDay();
 
@@ -136,14 +137,15 @@ export interface TaskInput {
   scheduleType: ScheduleType;
   daysOfWeek: DayOfWeek[];
   intervalDays: number | null;
+  isEssential: boolean;
   reminderEnabled: boolean;
   reminderTime: string | null;
 }
 
 export function createTask(task: TaskInput): number {
   const result = db.runSync(
-    `INSERT INTO tasks (name, energyCost, category, timeOfDay, scheduleType, daysOfWeek, intervalDays, isRecurring, reminderEnabled, reminderTime, createdAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO tasks (name, energyCost, category, timeOfDay, scheduleType, daysOfWeek, intervalDays, isEssential, isRecurring, reminderEnabled, reminderTime, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       task.name,
       task.energyCost,
@@ -152,6 +154,7 @@ export function createTask(task: TaskInput): number {
       task.scheduleType,
       JSON.stringify(task.daysOfWeek),
       task.intervalDays,
+      task.isEssential ? 1 : 0,
       // Legacy column, kept in sync so an older build reading this row still
       // behaves sensibly.
       task.scheduleType === "once" ? 0 : 1,
@@ -180,7 +183,7 @@ export function deleteTask(id: number) {
 
 export function updateTask(id: number, task: TaskInput) {
   db.runSync(
-    `UPDATE tasks SET name = ?, energyCost = ?, category = ?, timeOfDay = ?, scheduleType = ?, daysOfWeek = ?, intervalDays = ?, isRecurring = ?, reminderEnabled = ?, reminderTime = ? WHERE id = ?`,
+    `UPDATE tasks SET name = ?, energyCost = ?, category = ?, timeOfDay = ?, scheduleType = ?, daysOfWeek = ?, intervalDays = ?, isEssential = ?, isRecurring = ?, reminderEnabled = ?, reminderTime = ? WHERE id = ?`,
     [
       task.name,
       task.energyCost,
@@ -189,6 +192,7 @@ export function updateTask(id: number, task: TaskInput) {
       task.scheduleType,
       JSON.stringify(task.daysOfWeek),
       task.intervalDays,
+      task.isEssential ? 1 : 0,
       task.scheduleType === "once" ? 0 : 1,
       task.reminderEnabled ? 1 : 0,
       task.reminderTime,
@@ -216,6 +220,7 @@ function rowToTask(row: any): Task {
         : "daily",
     daysOfWeek: JSON.parse(row.daysOfWeek),
     intervalDays: typeof row.intervalDays === "number" ? row.intervalDays : null,
+    isEssential: !!row.isEssential,
     reminderEnabled: !!row.reminderEnabled,
     reminderTime: row.reminderTime ?? null,
     createdAt: row.createdAt,
@@ -424,8 +429,8 @@ export function restoreSnapshot(snapshot: DatabaseSnapshot) {
             : "weekdays";
 
       db.runSync(
-        `INSERT INTO tasks (id, name, energyCost, category, timeOfDay, scheduleType, daysOfWeek, intervalDays, isRecurring, reminderEnabled, reminderTime, createdAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO tasks (id, name, energyCost, category, timeOfDay, scheduleType, daysOfWeek, intervalDays, isEssential, isRecurring, reminderEnabled, reminderTime, createdAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           t.id,
           t.name,
@@ -435,6 +440,7 @@ export function restoreSnapshot(snapshot: DatabaseSnapshot) {
           scheduleType,
           daysOfWeek,
           typeof t.intervalDays === "number" ? t.intervalDays : null,
+          t.isEssential ? 1 : 0,
           scheduleType === "once" ? 0 : 1,
           t.reminderEnabled ? 1 : 0,
           t.reminderTime ?? null,
