@@ -1,7 +1,8 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { DAY_RATING_LABELS } from "../db/logic";
-import { Palette, useThemedStyles } from "../theme";
+import { Palette, useTheme, useThemedStyles } from "../theme";
+import FaceMark from "./FaceMark";
 import { DayRating } from "../types";
 
 const RATINGS: DayRating[] = [1, 2, 3, 4, 5];
@@ -25,6 +26,7 @@ export default function DayReflection({
   onRate: (rating: DayRating) => void;
 }) {
   const styles = useThemedStyles(createStyles);
+  const { palette } = useTheme();
 
   return (
     <View style={styles.card}>
@@ -40,7 +42,14 @@ export default function DayReflection({
               key={value}
               style={[styles.option, selected && styles.optionSelected]}
               onPress={() => onRate(value)}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              accessibilityLabel={DAY_RATING_LABELS[value]}
             >
+              <FaceMark
+                rating={value}
+                color={selected ? palette.onAccent : palette.textSecondary}
+              />
               <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>
                 {DAY_RATING_LABELS[value]}
               </Text>
@@ -70,6 +79,7 @@ const createStyles = (palette: Palette) =>
       flex: 1,
       alignItems: "center",
       paddingVertical: 9,
+      gap: 5,
       borderRadius: 10,
       backgroundColor: palette.background,
       borderWidth: 1,

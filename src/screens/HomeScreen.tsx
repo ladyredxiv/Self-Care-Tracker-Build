@@ -340,7 +340,7 @@ function TaskRow({
       onLongPress={disabled ? undefined : () => onLongPress(task)}
     >
       <View style={[styles.taskCheck, task.completedToday && styles.taskCheckDone]}>
-        {task.completedToday ? <Text style={styles.taskCheckMark}>✓</Text> : null}
+        {task.completedToday ? <View style={styles.taskCheckMark} /> : null}
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.taskName}>
@@ -461,7 +461,17 @@ const createStyles = (palette: Palette) =>
     justifyContent: "center",
   },
   taskCheckDone: { backgroundColor: palette.highlight, borderColor: palette.highlight },
-  taskCheckMark: { color: palette.onAccent, fontSize: 14, fontWeight: "800", lineHeight: 16 },
+  // Two borders on a rotated box: the classic drawn tick, so there's no glyph to
+  // render inconsistently and the weight and colour are ours to set.
+  taskCheckMark: {
+    width: 10,
+    height: 5.5,
+    marginTop: -3,
+    borderLeftWidth: 2,
+    borderBottomWidth: 2,
+    borderColor: palette.onAccent,
+    transform: [{ rotate: "-45deg" }],
+  },
   taskName: { fontSize: 16, fontWeight: "700", color: palette.textPrimary },
   taskMeta: { fontSize: 13, color: palette.textMuted, marginTop: 2 },
   blockedTag: { fontSize: 12, color: palette.warning },

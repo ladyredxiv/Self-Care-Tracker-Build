@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
 
 import { applyBackup, exportBackup, pickBackup } from "../backup";
 import { describeBundle, describeRuntime } from "../components/BuildBadge";
@@ -37,7 +36,6 @@ const APPEARANCE_OPTIONS: { value: ThemePreference; label: string }[] = [
 ];
 
 export default function SettingsScreen() {
-  const navigation = useNavigation<any>();
   const styles = useThemedStyles(createStyles);
   const { palette, preference, setPreference } = useTheme();
   const { paddingTop, paddingBottom } = useScreenPadding();
@@ -178,13 +176,6 @@ export default function SettingsScreen() {
       contentContainerStyle={[styles.content, { paddingTop, paddingBottom: paddingBottom + 20 }]}
     >
       <StorybookHeader title="Settings" subtitle="Make the app fit your actual life" fullBleed />
-      <View style={[styles.header, { display: "none" }]}>
-        <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
-          <Text style={styles.backButton}>‹ Back</Text>
-        </Pressable>
-        <Text style={styles.title}>Settings</Text>
-        <View style={{ width: 50 }} />
-      </View>
 
       <View style={styles.reminderRow}>
         <Text style={styles.sectionLabel}>Keep spoons in the notification shade</Text>
@@ -337,14 +328,6 @@ const createStyles = (palette: Palette) =>
   screen: { flex: 1, backgroundColor: palette.background },
   container: { flex: 1, backgroundColor: palette.background },
   content: { paddingHorizontal: 20 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 28,
-  },
-  backButton: { fontSize: 16, color: palette.textPrimary, width: 50 },
-  title: { fontSize: 18, fontWeight: "700", color: palette.textPrimary },
   sectionLabel: { fontSize: 16, fontWeight: "700", color: palette.textPrimary, marginBottom: 6, flex: 1 },
   reminderRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   sectionBody: { fontSize: 14, color: palette.textMuted, lineHeight: 20, marginBottom: 20 },

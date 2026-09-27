@@ -3,6 +3,7 @@ import { ImageBackground, Pressable, StyleSheet, Text, TextInput, View } from "r
 import { capacityOptions } from "../db/logic";
 import { Palette, useThemedStyles } from "../theme";
 import { formatSleepDuration } from "../utils/sleepInsight";
+import { spoonMeterModel } from "../utils/spoonMeter";
 import SpoonMeter from "./SpoonMeter";
 import { nightArtwork } from "./StorybookHeader";
 
@@ -36,6 +37,10 @@ export default function CapacityCard({
   onDismiss: () => void;
 }) {
   const styles = useThemedStyles(createStyles);
+  // Surfaced as a badge as well as in the meter's summary: being above the day's
+  // budget is the sort of good news worth showing rather than tucking into a line
+  // of small text.
+  const toppedUp = spoonMeterModel(budget, spent).bonus;
 
   return (
     <ImageBackground source={nightArtwork} style={styles.card} imageStyle={styles.cardImage}>
@@ -87,6 +92,12 @@ export default function CapacityCard({
               selectTextOnFocus
             />
             <Text style={styles.countUnit}>spoons today</Text>
+            {toppedUp > 0 && (
+              <View style={styles.bonusBadge}>
+                <Text style={styles.bonusValue}>+{toppedUp}</Text>
+                <Text style={styles.bonusLabel}>back</Text>
+              </View>
+            )}
           </View>
           <SpoonMeter budget={budget} spent={spent} tone="onArtwork" />
         </>
@@ -138,4 +149,15 @@ const createStyles = (palette: Palette) =>
       minWidth: 46,
     },
     countUnit: { fontSize: 15, color: palette.onArtworkMuted, marginLeft: 2 },
+    bonusBadge: {
+      marginLeft: "auto",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 11,
+      paddingVertical: 5,
+      borderRadius: 999,
+      backgroundColor: palette.highlightOnArtwork,
+    },
+    bonusValue: { fontSize: 15, fontWeight: "800", color: palette.onAccent },
+    bonusLabel: { fontSize: 10, color: palette.onAccent, marginTop: -2 },
   });

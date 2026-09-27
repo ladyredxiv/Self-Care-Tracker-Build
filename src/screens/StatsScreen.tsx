@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
 import { DayUsage, describePayback, todayDateString } from "../db/logic";
 import { Insights, loadInsights, loadSleepInsight, loadUsageTrend } from "../db/selectors";
 import { describeSleep, formatSleepDuration, SleepInsight } from "../utils/sleepInsight";
@@ -17,7 +17,6 @@ const CHART_HEIGHT = 140;
 const BAR_WIDTH = 28;
 
 export default function StatsScreen() {
-  const navigation = useNavigation<any>();
   const styles = useThemedStyles(createStyles);
   const { paddingTop } = useScreenPadding();
   const [trend, setTrend] = useState<DayUsage[]>([]);
@@ -54,13 +53,6 @@ export default function StatsScreen() {
       contentContainerStyle={styles.scrollContent}
     >
       <StorybookHeader title="Budget trends" subtitle="A gentle read of your last 30 days" />
-      <View style={[styles.header, { display: "none" }]}>
-        <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
-          <Text style={styles.backButton}>‹ Back</Text>
-        </Pressable>
-        <Text style={styles.title}>Budget trends</Text>
-        <View style={{ width: 50 }} />
-      </View>
 
       <View style={styles.summaryRow}>
         <SummaryStat label="Avg. utilization" value={`${avgUtilization}%`} />
@@ -253,15 +245,6 @@ const createStyles = (palette: Palette) =>
   StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.background },
   container: { flex: 1, backgroundColor: palette.background },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    marginBottom: 20,
-  },
-  backButton: { fontSize: 16, color: palette.textPrimary, width: 50 },
-  title: { fontSize: 18, fontWeight: "700", color: palette.textPrimary },
   summaryRow: {
     flexDirection: "row",
     paddingHorizontal: 16,
