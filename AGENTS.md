@@ -11,24 +11,37 @@ push tokens), so nothing here needs Google Play Services.
 
 # EAS release compatibility
 
-Use `runtimeVersion.policy: "fingerprint"`. Do not change this to `appVersion`
-without rebuilding and reinstalling the APK first.
+Use `runtimeVersion.policy: "appVersion"`. The installed APK is **1.0.1**, so
+`expo.version` in app.json must stay `1.0.1` for updates to reach it. Keep
+package.json's version aligned.
 
-It was briefly switched to `appVersion` with the version bumped to 1.0.1. That
-silently broke update delivery: the installed APK was built under `fingerprint`,
-so its embedded runtime is the hash `a966e026...`, while `eas update` then stamped
-updates `"1.0.1"`. Nothing matched, so "Check for updates" reported "nothing new"
-forever with no error anywhere. Reverting to `fingerprint` at version 1.0.0
-reproduces `a966e026...` exactly and restores delivery with no rebuild — verified
-with `npx expo-updates fingerprint:generate --platform android`.
+## Before changing this, check what is actually installed
 
-The two policies fail in opposite directions, which is the real reason for the
-choice. `fingerprint` fails safe: a mismatched update is simply never delivered.
-`appVersion` fails loud: the update IS delivered, and if native dependencies
-changed without someone remembering to bump the version, the app can crash on
-launch. For an app used daily for health tracking, silence beats a crash.
+Do not reason about the runtime from config history — read it from the device or
+from `eas build:list`. The app shows it in Settings under "App updates", and the
+"nothing new to install" dialog names it.
 
-Practical consequence: adding or removing ANY dependency changes the fingerprint
-and requires a new APK. JS/asset-only changes keep it stable and ship over the air
-to the `preview` channel. Always confirm with `fingerprint:generate` before
-publishing, and compare against `eas build:list`.
+This has now broken twice, in both directions:
+
+- Switching config to `appVersion` while the installed APK was a `fingerprint`
+  build stranded it: updates stamped `"1.0.1"` matched nothing.
+- Reverting config to `fingerprint` *after* a 1.0.1 APK had been built and
+  installed stranded it again, the same way.
+
+Either mismatch is silent. `eas update` succeeds, the phone reports "nothing new
+to install", and nothing anywhere reports an error.
+
+## Why appVersion here
+
+Two `fingerprint` builds errored (runtime `118bf2d8...`) before the `appVersion`
+1.0.1 build succeeded, and Morgan wants updates that are easy to ship.
+
+The tradeoff to respect: `appVersion` fails LOUD. Unlike `fingerprint`, which
+simply withholds a mismatched update, `appVersion` will happily deliver JS to a
+binary whose native side no longer matches — which can crash on launch. The
+guardrail is therefore discipline, not arithmetic:
+
+**Bump `expo.version` and build a new APK before shipping any change that adds,
+removes or updates a dependency, or edits native config in app.json.** JS- and
+asset-only changes keep the version and ship over the air to the `preview`
+channel.
