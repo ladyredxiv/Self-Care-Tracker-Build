@@ -7,6 +7,8 @@ import { describeSleep, formatSleepDuration, SleepInsight } from "../utils/sleep
 import { useScreenPadding } from "../hooks/useScreenPadding";
 import { Palette, useThemedStyles } from "../theme";
 import { parseDateString } from "../utils/date";
+import AppTabBar from "../components/AppTabBar";
+import StorybookHeader from "../components/StorybookHeader";
 
 const WINDOW_DAYS = 14;
 /** Wider than the chart: payback needs enough overspends with ratings after them. */
@@ -46,11 +48,13 @@ export default function StatsScreen() {
   const maxScale = Math.max(1, ...trend.map((d) => Math.max(d.budget, d.spent)));
 
   return (
+    <View style={styles.screen}>
     <ScrollView
       style={[styles.container, { paddingTop }]}
       contentContainerStyle={styles.scrollContent}
     >
-      <View style={styles.header}>
+      <StorybookHeader title="Budget trends" subtitle="A gentle read of your last 30 days" />
+      <View style={[styles.header, { display: "none" }]}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
           <Text style={styles.backButton}>‹ Back</Text>
         </Pressable>
@@ -91,6 +95,8 @@ export default function StatsScreen() {
       {insights && <InsightsSection insights={insights} />}
       {sleep && sleep.comparableDays > 0 && <SleepSection insight={sleep} />}
     </ScrollView>
+    <AppTabBar active="trends" />
+    </View>
   );
 }
 
@@ -245,6 +251,7 @@ function DayBar({ day, maxScale }: { day: DayUsage; maxScale: number }) {
 
 const createStyles = (palette: Palette) =>
   StyleSheet.create({
+  screen: { flex: 1, backgroundColor: palette.background },
   container: { flex: 1, backgroundColor: palette.background },
   header: {
     flexDirection: "row",
@@ -259,12 +266,12 @@ const createStyles = (palette: Palette) =>
     flexDirection: "row",
     paddingHorizontal: 16,
     gap: 12,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   summaryStat: {
     flex: 1,
     backgroundColor: palette.surfaceAlt,
-    borderRadius: 14,
+    borderRadius: 18,
     padding: 16,
     alignItems: "center",
   },
@@ -320,8 +327,17 @@ const createStyles = (palette: Palette) =>
   spentSwatch: { backgroundColor: palette.chartSpent },
   overSwatch: { backgroundColor: palette.chartOver },
   legendText: { fontSize: 12, color: palette.textSecondary },
-  scrollContent: { paddingBottom: 40 },
-  insights: { paddingHorizontal: 16, marginTop: 32 },
+  scrollContent: { paddingBottom: 106 },
+  insights: {
+    marginHorizontal: 16,
+    marginTop: 20,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    backgroundColor: palette.surface,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: palette.borderSubtle,
+  },
   insightHeading: {
     fontSize: 13,
     fontWeight: "700",

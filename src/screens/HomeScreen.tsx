@@ -10,7 +10,7 @@ import {
   TextInput,
   Pressable,
 } from "react-native";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import {
   completeTask,
   DEFAULT_BUDGET_KEY,
@@ -35,6 +35,8 @@ import { refreshStatusNotification } from "../statusRefresh";
 import { Palette, useTheme, useThemedStyles } from "../theme";
 import { DayLog, DayRating, ProgressStyle, TaskWithStatus, TimeOfDay } from "../types";
 import { formatTimeLabel } from "../utils/time";
+import AppTabBar from "../components/AppTabBar";
+import StorybookHeader from "../components/StorybookHeader";
 
 const TIME_OF_DAY_LABELS: Record<TimeOfDay, string> = {
   morning: "Morning",
@@ -53,6 +55,8 @@ interface TaskSection {
 
 export default function HomeScreen() {
   const navigation = useNavigation<any>();
+  const route = useRoute();
+  const isTaskList = route.name === "Tasks";
   const styles = useThemedStyles(createStyles);
   const { paddingTop, paddingBottom } = useScreenPadding();
   const [today, setToday] = useState(todayDateString);
@@ -201,30 +205,37 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop }]}>
-      <CapacityCard
-        budget={budget}
-        spent={spent}
-        needsCheckIn={showCheckIn}
-        sleepHours={sleepHours}
-        budgetInput={budgetInput}
-        onBudgetInputChange={setBudgetInput}
-        onBudgetCommit={saveBudget}
-        onChoose={chooseCapacity}
-        onDismiss={() => setCheckInHidden(true)}
-        onOpenTrends={() => navigation.navigate("Stats")}
-        onOpenSettings={() => navigation.navigate("Settings")}
-      />
+      {isTaskList ? (
+        <StorybookHeader
+          title="Today"
+          subtitle={new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
+        />
+      ) : (
+        <CapacityCard
+          budget={budget}
+          spent={spent}
+          needsCheckIn={showCheckIn}
+          sleepHours={sleepHours}
+          budgetInput={budgetInput}
+          onBudgetInputChange={setBudgetInput}
+          onBudgetCommit={saveBudget}
+          onChoose={chooseCapacity}
+          onDismiss={() => setCheckInHidden(true)}
+          onOpenTrends={() => navigation.navigate("Stats")}
+          onOpenSettings={() => navigation.navigate("Settings")}
+        />
+      )}
 
-      {showReflection && (
+      {!isTaskList && showReflection && (
         <DayReflection rating={dayLog?.rating ?? null} onRate={rateDay} />
       )}
 
-      {!showCheckIn && <StartHere tasks={startHere} onComplete={(t) => complete(t)} />}
+      {!isTaskList && !showCheckIn && <StartHere tasks={startHere} onComplete={(t) => complete(t)} />}
 
       <SectionList
         sections={sections}
         keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={[styles.listContent, { paddingBottom: 100 + paddingBottom }]}
+        contentContainerStyle={[styles.listContent, { paddingBottom: 118 + paddingBottom }]}
         stickySectionHeadersEnabled={false}
         ListEmptyComponent={
           <Text style={styles.emptyText}>
@@ -247,11 +258,12 @@ export default function HomeScreen() {
       />
 
       <Pressable
-        style={[styles.addButton, { bottom: paddingBottom + 12 }]}
+        style={[styles.addButton, { bottom: paddingBottom + 82 }]}
         onPress={() => navigation.navigate("TaskForm")}
       >
         <Text style={styles.addButtonText}>+ Add self-care task</Text>
       </Pressable>
+      <AppTabBar active={isTaskList ? "tasks" : "today"} />
     </View>
   );
 }
@@ -329,6 +341,9 @@ function TaskRow({
       onPress={disabled ? undefined : () => onToggle(task)}
       onLongPress={disabled ? undefined : () => onLongPress(task)}
     >
+      <View style={[styles.taskCheck, task.completedToday && styles.taskCheckDone]}>
+        {task.completedToday ? <Text style={styles.taskCheckMark}>✓</Text> : null}
+      </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.taskName}>
           {task.name}
@@ -423,9 +438,9 @@ const createStyles = (palette: Palette) =>
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 11,
-    paddingLeft: 14,
+    paddingLeft: 12,
     paddingRight: 6,
-    borderRadius: 12,
+    borderRadius: 16,
     backgroundColor: palette.surface,
     marginBottom: 6,
     borderWidth: 1,
@@ -437,7 +452,19 @@ const createStyles = (palette: Palette) =>
   },
   taskRowDone: { backgroundColor: palette.doneSurface, borderColor: palette.doneBorder },
   taskRowBlocked: { opacity: 0.45 },
-  taskName: { fontSize: 16, fontWeight: "600", color: palette.textPrimary },
+  taskCheck: {
+    width: 24,
+    height: 24,
+    marginRight: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: palette.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  taskCheckDone: { backgroundColor: palette.highlight, borderColor: palette.highlight },
+  taskCheckMark: { color: palette.onAccent, fontSize: 14, fontWeight: "800", lineHeight: 16 },
+  taskName: { fontSize: 16, fontWeight: "700", color: palette.textPrimary },
   taskMeta: { fontSize: 13, color: palette.textMuted, marginTop: 2 },
   blockedTag: { fontSize: 12, color: palette.warning },
   // Muted rather than alarming: waiting time is a sorting signal, not a telling-off.

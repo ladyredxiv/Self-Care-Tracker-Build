@@ -79,6 +79,7 @@ function ThemedNavigation() {
         }}
       >
         <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="Tasks" component={HomeScreen} />
         <Stack.Screen name="Stats" component={StatsScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen

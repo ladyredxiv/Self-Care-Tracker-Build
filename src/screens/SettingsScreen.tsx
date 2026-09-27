@@ -19,6 +19,8 @@ import { Palette, ThemePreference, useTheme, useThemedStyles } from "../theme";
 import { ProgressStyle } from "../types";
 import { applyUpdate, checkAndFetchUpdate } from "../updates";
 import { BackupFile } from "../utils/backupFormat";
+import AppTabBar from "../components/AppTabBar";
+import StorybookHeader from "../components/StorybookHeader";
 
 const PROGRESS_OPTIONS: { value: ProgressStyle; label: string }[] = [
   { value: "recent", label: "Recent count" },
@@ -170,11 +172,13 @@ export default function SettingsScreen() {
   };
 
   return (
+    <View style={styles.screen}>
     <ScrollView
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingTop, paddingBottom: paddingBottom + 20 }]}
     >
-      <View style={styles.header}>
+      <StorybookHeader title="Settings" subtitle="Make the app fit your actual life" fullBleed />
+      <View style={[styles.header, { display: "none" }]}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
           <Text style={styles.backButton}>‹ Back</Text>
         </Pressable>
@@ -323,13 +327,16 @@ export default function SettingsScreen() {
         </Text>
       </Pressable>
     </ScrollView>
+    <AppTabBar active="settings" />
+    </View>
   );
 }
 
 const createStyles = (palette: Palette) =>
   StyleSheet.create({
+  screen: { flex: 1, backgroundColor: palette.background },
   container: { flex: 1, backgroundColor: palette.background },
-  content: { padding: 20 },
+  content: { paddingHorizontal: 20 },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -338,7 +345,7 @@ const createStyles = (palette: Palette) =>
   },
   backButton: { fontSize: 16, color: palette.textPrimary, width: 50 },
   title: { fontSize: 18, fontWeight: "700", color: palette.textPrimary },
-  sectionLabel: { fontSize: 14, color: palette.textSecondary, marginBottom: 6, flex: 1 },
+  sectionLabel: { fontSize: 16, fontWeight: "700", color: palette.textPrimary, marginBottom: 6, flex: 1 },
   reminderRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   sectionBody: { fontSize: 14, color: palette.textMuted, lineHeight: 20, marginBottom: 20 },
   button: {
@@ -375,6 +382,6 @@ const createStyles = (palette: Palette) =>
   divider: {
     height: 1,
     backgroundColor: palette.borderSubtle,
-    marginVertical: 28,
+    marginVertical: 24,
   },
   });

@@ -1,9 +1,10 @@
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ImageBackground, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { capacityOptions } from "../db/logic";
 import { Palette, useThemedStyles } from "../theme";
 import { formatSleepDuration } from "../utils/sleepInsight";
 import SpoonMeter from "./SpoonMeter";
+import { nightArtwork } from "./StorybookHeader";
 
 /**
  * The single card at the top of Home.
@@ -41,9 +42,13 @@ export default function CapacityCard({
   const styles = useThemedStyles(createStyles);
 
   return (
-    <View style={styles.card}>
+    <ImageBackground source={nightArtwork} style={styles.card} imageStyle={styles.cardImage}>
+      <View style={styles.artVeil} />
       <View style={styles.header}>
-        <Text style={styles.label}>Today</Text>
+        <View>
+          <Text style={styles.title}>Today</Text>
+          <Text style={styles.date}>{new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}</Text>
+        </View>
         <View style={styles.headerLinks}>
           <Pressable
             onPress={onOpenTrends}
@@ -61,7 +66,7 @@ export default function CapacityCard({
             accessibilityLabel="Settings"
             style={styles.iconButton}
           >
-            <Text style={styles.headerLink}>Settings</Text>
+            <Text style={styles.gear}>⚙</Text>
           </Pressable>
         </View>
       </View>
@@ -110,7 +115,7 @@ export default function CapacityCard({
           <SpoonMeter budget={budget} spent={spent} />
         </>
       )}
-    </View>
+    </ImageBackground>
   );
 }
 
@@ -118,49 +123,48 @@ const createStyles = (palette: Palette) =>
   StyleSheet.create({
     card: {
       marginHorizontal: 16,
-      marginBottom: 10,
+      marginBottom: 14,
       paddingHorizontal: 16,
-      paddingTop: 12,
-      paddingBottom: 14,
-      borderRadius: 18,
-      backgroundColor: palette.surfaceAlt,
+      paddingTop: 14,
+      paddingBottom: 18,
+      minHeight: 224,
+      borderRadius: 24,
+      overflow: "hidden",
     },
+    cardImage: { resizeMode: "cover" },
+    artVeil: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(25, 18, 44, 0.25)" },
     header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-    label: {
-      fontSize: 12,
-      fontWeight: "600",
-      letterSpacing: 0.6,
-      textTransform: "uppercase",
-      color: palette.textMuted,
-    },
+    title: { fontSize: 34, lineHeight: 38, fontFamily: "serif", fontWeight: "700", color: "#fff8ed" },
+    date: { fontSize: 15, color: "#fff2e5", marginTop: 1 },
     headerLinks: { flexDirection: "row", alignItems: "center", gap: 4 },
     // 44dp tall targets; these were previously bare glyphs relying on hitSlop.
     iconButton: { height: 44, paddingHorizontal: 8, justifyContent: "center" },
-    headerLink: { fontSize: 13, fontWeight: "600", color: palette.textSecondary },
+    headerLink: { fontSize: 13, fontWeight: "700", color: "#fff7ed" },
+    gear: { fontSize: 25, color: "#fff7ed" },
 
-    question: { fontSize: 17, fontWeight: "700", color: palette.textPrimary, marginTop: 2 },
-    subtitle: { fontSize: 13, color: palette.textMuted, marginTop: 2 },
+    question: { fontSize: 17, fontWeight: "700", color: "#fff8ed", marginTop: 10 },
+    subtitle: { fontSize: 13, color: "#f7ddd0", marginTop: 2 },
     optionRow: { flexDirection: "row", gap: 8, marginTop: 12 },
     option: {
       flex: 1,
       alignItems: "center",
       paddingVertical: 10,
       borderRadius: 12,
-      backgroundColor: palette.surface,
+      backgroundColor: "rgba(255, 250, 242, 0.92)",
       borderWidth: 1,
       borderColor: palette.border,
     },
     optionSpoons: { fontSize: 19, fontWeight: "700", color: palette.textPrimary },
     optionLabel: { fontSize: 11, color: palette.textMuted, marginTop: 1 },
-    skip: { fontSize: 13, color: palette.textMuted, marginTop: 10, textAlign: "center" },
+    skip: { fontSize: 13, color: "#fff3e8", marginTop: 10, textAlign: "center" },
 
     countRow: { flexDirection: "row", alignItems: "baseline", marginTop: 2 },
     count: {
       fontSize: 34,
       fontWeight: "700",
-      color: palette.textPrimary,
+      color: "#fff9ee",
       paddingVertical: 0,
       minWidth: 46,
     },
-    countUnit: { fontSize: 15, color: palette.textSecondary, marginLeft: 2 },
+    countUnit: { fontSize: 15, color: "#fff0e4", marginLeft: 2 },
   });
