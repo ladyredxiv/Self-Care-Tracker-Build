@@ -41,11 +41,11 @@ const createStyles = (palette: Palette) =>
     image: { resizeMode: "cover", opacity: 0.96 },
     veil: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: "rgba(35, 25, 55, 0.20)",
+      backgroundColor: palette.artworkVeil,
     },
     copy: { paddingHorizontal: 22, paddingBottom: 18 },
     title: {
-      color: "#fff8ee",
+      color: palette.onArtwork,
       fontSize: 34,
       lineHeight: 39,
       fontFamily: "serif",
@@ -55,7 +55,7 @@ const createStyles = (palette: Palette) =>
       textShadowRadius: 5,
     },
     subtitle: {
-      color: "#fff5e8",
+      color: palette.onArtworkMuted,
       fontSize: 15,
       marginTop: 2,
       textShadowColor: "rgba(27, 17, 34, 0.6)",

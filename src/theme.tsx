@@ -43,6 +43,22 @@ export interface Palette {
   highlightSoft: HexColor;
   /** Unfilled spoon marks — spent, not missing. */
   spoonEmpty: HexColor;
+
+  /**
+   * Colours for content sitting on the night artwork.
+   *
+   * Identical in both themes on purpose: the illustration is dark whichever theme
+   * is active, so this content is always light. They exist as tokens rather than
+   * hardcoded hexes because anything reaching for palette.textSecondary on top of
+   * the artwork renders dark-on-dark and disappears.
+   */
+  onArtwork: HexColor;
+  onArtworkMuted: HexColor;
+  /** Eight-digit hex: a translucent wash that keeps titles legible over the art. */
+  artworkVeil: HexColor;
+  highlightOnArtwork: HexColor;
+  spoonEmptyOnArtwork: HexColor;
+  warningOnArtwork: HexColor;
   doneSurface: HexColor;
   doneBorder: HexColor;
   doneText: HexColor;
@@ -71,6 +87,12 @@ export const lightPalette: Palette = {
   highlight: "#649267",
   highlightSoft: "#edf3e5",
   spoonEmpty: "#ddcdbf",
+  onArtwork: "#fff8ed",
+  onArtworkMuted: "#e6d7cb",
+  artworkVeil: "#19122c40",
+  highlightOnArtwork: "#93cf9d",
+  spoonEmptyOnArtwork: "#ffffff59",
+  warningOnArtwork: "#f0b487",
   doneSurface: "#e7f3e8",
   doneBorder: "#cfe6d2",
   doneText: "#3c7a3f",
@@ -103,6 +125,12 @@ export const darkPalette: Palette = {
   highlight: "#8fc79a",
   highlightSoft: "#233026",
   spoonEmpty: "#40372f",
+  onArtwork: "#fff8ed",
+  onArtworkMuted: "#e6d7cb",
+  artworkVeil: "#19122c40",
+  highlightOnArtwork: "#93cf9d",
+  spoonEmptyOnArtwork: "#ffffff59",
+  warningOnArtwork: "#f0b487",
   doneSurface: "#233027",
   doneBorder: "#364a3a",
   doneText: "#93c698",

@@ -5,41 +5,45 @@ import { HexColor } from "../theme";
 /**
  * A single spoon, drawn from two views.
  *
- * Deliberately not an icon font. @expo/vector-icons would look better, but adding
- * any dependency changes the update fingerprint, and that would mean a ten-minute
- * rebuild for every iteration on how this looks — which is the wrong trade while
- * the design is still moving. Two rounded rectangles read as a spoon at this size.
+ * Proportions matter more than they sound: an earlier version used a wide, nearly
+ * circular bowl on a short thick stem, which read as a balloon or a pin rather
+ * than a spoon. A real teaspoon in silhouette is a narrow oval bowl on a handle
+ * about as long again, so the bowl is taller than it is wide and the handle is
+ * thin.
+ *
+ * Deliberately not an icon font: adding @expo/vector-icons moves the update
+ * fingerprint, and geometry renders identically everywhere.
  */
 export default function SpoonMark({
   color,
-  size = 15,
+  size = 16,
 }: {
   color: HexColor;
   size?: number;
 }) {
-  const bowlWidth = Math.round(size * 0.6);
-  const bowlHeight = Math.round(size * 0.72);
-  const stemWidth = Math.max(2, Math.round(size * 0.2));
+  const bowlWidth = size * 0.44;
+  const bowlHeight = size * 0.54;
+  const handleWidth = Math.max(1.6, size * 0.15);
+  const handleHeight = size * 0.5;
 
   return (
-    <View style={{ width: size, alignItems: "center" }}>
+    <View style={{ width: size * 0.5, alignItems: "center" }}>
       <View
         style={{
           width: bowlWidth,
           height: bowlHeight,
+          // Half the *width* keeps the shape an upright oval rather than a circle.
           borderRadius: bowlWidth / 2,
           backgroundColor: color,
         }}
       />
       <View
         style={{
-          width: stemWidth,
-          height: Math.round(size * 0.42),
-          borderTopLeftRadius: 0,
-          borderTopRightRadius: 0,
-          borderBottomLeftRadius: stemWidth / 2,
-          borderBottomRightRadius: stemWidth / 2,
-          marginTop: -1,
+          width: handleWidth,
+          height: handleHeight,
+          borderBottomLeftRadius: handleWidth / 2,
+          borderBottomRightRadius: handleWidth / 2,
+          marginTop: -size * 0.04,
           backgroundColor: color,
         }}
       />

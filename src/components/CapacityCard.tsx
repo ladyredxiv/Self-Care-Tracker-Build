@@ -88,7 +88,7 @@ export default function CapacityCard({
             />
             <Text style={styles.countUnit}>spoons today</Text>
           </View>
-          <SpoonMeter budget={budget} spent={spent} />
+          <SpoonMeter budget={budget} spent={spent} tone="onArtwork" />
         </>
       )}
     </ImageBackground>
@@ -108,34 +108,34 @@ const createStyles = (palette: Palette) =>
       overflow: "hidden",
     },
     cardImage: { resizeMode: "cover" },
-    artVeil: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(25, 18, 44, 0.25)" },
+    artVeil: { ...StyleSheet.absoluteFillObject, backgroundColor: palette.artworkVeil },
     header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-    title: { fontSize: 34, lineHeight: 38, fontFamily: "serif", fontWeight: "700", color: "#fff8ed" },
-    date: { fontSize: 15, color: "#fff2e5", marginTop: 1 },
+    title: { fontSize: 34, lineHeight: 38, fontFamily: "serif", fontWeight: "700", color: palette.onArtwork },
+    date: { fontSize: 15, color: palette.onArtworkMuted, marginTop: 1 },
 
-    question: { fontSize: 17, fontWeight: "700", color: "#fff8ed", marginTop: 10 },
-    subtitle: { fontSize: 13, color: "#f7ddd0", marginTop: 2 },
+    question: { fontSize: 17, fontWeight: "700", color: palette.onArtwork, marginTop: 10 },
+    subtitle: { fontSize: 13, color: palette.onArtworkMuted, marginTop: 2 },
     optionRow: { flexDirection: "row", gap: 8, marginTop: 12 },
     option: {
       flex: 1,
       alignItems: "center",
       paddingVertical: 10,
       borderRadius: 12,
-      backgroundColor: "rgba(255, 250, 242, 0.92)",
+      backgroundColor: palette.surface,
       borderWidth: 1,
       borderColor: palette.border,
     },
     optionSpoons: { fontSize: 19, fontWeight: "700", color: palette.textPrimary },
     optionLabel: { fontSize: 11, color: palette.textMuted, marginTop: 1 },
-    skip: { fontSize: 13, color: "#fff3e8", marginTop: 10, textAlign: "center" },
+    skip: { fontSize: 13, color: palette.onArtworkMuted, marginTop: 10, textAlign: "center" },
 
     countRow: { flexDirection: "row", alignItems: "baseline", marginTop: 2 },
     count: {
       fontSize: 34,
       fontWeight: "700",
-      color: "#fff9ee",
+      color: palette.onArtwork,
       paddingVertical: 0,
       minWidth: 46,
     },
-    countUnit: { fontSize: 15, color: "#fff0e4", marginLeft: 2 },
+    countUnit: { fontSize: 15, color: palette.onArtworkMuted, marginLeft: 2 },
   });
