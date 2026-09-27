@@ -34,6 +34,17 @@ const SCHEDULE_HINTS: Record<ScheduleType, string> = {
   weekdays: "Fixed days of the week. Good for things pinned to the calendar, like therapy homework.",
   once: "Stays on your list every day until you finish it, then disappears.",
 };
+/**
+ * A starting set, not a limit — the field accepts anything typed into it. Chosen
+ * to cover the common ground of self-care: washing, food, medication, movement,
+ * rest, admin.
+ */
+const ICON_CHOICES = [
+  "🚿", "🛁", "🪥", "🧴", "🍽️", "🥣", "☕", "💧",
+  "💊", "🩺", "🌿", "🚶", "🧘", "🛏️", "😴", "📖",
+  "🧺", "🧹", "📞", "✉️", "🌱", "🎧", "✏️", "🐾",
+];
+
 const DAY_LABELS: { label: string; value: DayOfWeek }[] = [
   { label: "Sun", value: 0 },
   { label: "Mon", value: 1 },
@@ -61,6 +72,7 @@ export default function TaskFormScreen() {
   const [scheduleType, setScheduleType] = useState<ScheduleType>("daily");
   const [intervalDays, setIntervalDays] = useState("2");
   const [isEssential, setIsEssential] = useState(false);
+  const [icon, setIcon] = useState<string | null>(null);
   const [isRestorative, setIsRestorative] = useState(false);
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderTime, setReminderTime] = useState("09:00");
@@ -78,6 +90,7 @@ export default function TaskFormScreen() {
     setScheduleType(task.scheduleType);
     setIntervalDays(String(task.intervalDays ?? 2));
     setIsEssential(task.isEssential);
+    setIcon(task.icon);
     // Stored as a negative cost; the form works in magnitude plus a direction.
     setIsRestorative(task.energyCost < 0);
     setEnergyCost(String(Math.abs(task.energyCost)));
@@ -117,6 +130,7 @@ export default function TaskFormScreen() {
       daysOfWeek: scheduleType === "weekdays" ? selectedDays : [],
       intervalDays: scheduleType === "interval" ? interval : null,
       isEssential,
+      icon,
       reminderEnabled,
       reminderTime: reminderEnabled ? reminderTime : null,
     };
@@ -155,6 +169,32 @@ export default function TaskFormScreen() {
       contentContainerStyle={{ padding: 20, paddingTop, paddingBottom: paddingBottom + 20 }}
     >
       <Text style={styles.title}>{isEditing ? "Edit self-care task" : "New self-care task"}</Text>
+
+      <Text style={styles.label}>Icon</Text>
+      <Text style={styles.hint}>Optional. Makes the row easier to spot at a glance.</Text>
+      <View style={styles.iconGrid}>
+        <Pressable
+          style={[styles.iconChoice, icon === null && styles.iconChoiceSelected]}
+          onPress={() => setIcon(null)}
+          accessibilityRole="button"
+          accessibilityLabel="No icon"
+          accessibilityState={{ selected: icon === null }}
+        >
+          <Text style={styles.iconNone}>none</Text>
+        </Pressable>
+        {ICON_CHOICES.map((choice) => (
+          <Pressable
+            key={choice}
+            style={[styles.iconChoice, icon === choice && styles.iconChoiceSelected]}
+            onPress={() => setIcon(choice)}
+            accessibilityRole="button"
+            accessibilityLabel={`Icon ${choice}`}
+            accessibilityState={{ selected: icon === choice }}
+          >
+            <Text style={styles.iconGlyph}>{choice}</Text>
+          </Pressable>
+        ))}
+      </View>
 
       <Text style={styles.label}>Name</Text>
       <TextInput
@@ -349,6 +389,20 @@ const createStyles = (palette: Palette) =>
   },
   hint: { fontSize: 13, color: palette.textMuted, lineHeight: 19, marginTop: 8 },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  iconGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
+  iconChoice: {
+    width: 46,
+    height: 46,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  iconChoiceSelected: { borderColor: palette.highlight, borderWidth: 2 },
+  iconGlyph: { fontSize: 22 },
+  iconNone: { fontSize: 11, color: palette.textMuted },
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 8,

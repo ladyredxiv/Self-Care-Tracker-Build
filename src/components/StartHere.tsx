@@ -30,6 +30,7 @@ export default function StartHere({
       {tasks.map((task) => (
         <Pressable key={task.id} style={styles.row} onPress={() => onComplete(task)}>
           <View style={styles.check} />
+          {task.icon ? <Text style={styles.icon}>{task.icon}</Text> : null}
           <Text style={styles.name} numberOfLines={1}>
             {task.name}
           </Text>
@@ -67,6 +68,7 @@ const createStyles = (palette: Palette) =>
       borderWidth: 1.5,
       borderColor: palette.border,
     },
+    icon: { fontSize: 16 },
     name: { flex: 1, fontSize: 15, color: palette.textPrimary },
     cost: { fontSize: 13, color: palette.textMuted },
   });

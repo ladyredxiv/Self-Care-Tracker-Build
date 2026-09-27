@@ -374,6 +374,7 @@ function TaskRow({
       <View style={[styles.taskCheck, task.completedToday && styles.taskCheckDone]}>
         {task.completedToday ? <View style={styles.taskCheckMark} /> : null}
       </View>
+      {task.icon ? <Text style={styles.taskIcon}>{task.icon}</Text> : null}
       <View style={{ flex: 1 }}>
         <Text style={styles.taskName}>
           {task.name}
@@ -527,6 +528,7 @@ const createStyles = (palette: Palette) =>
     borderColor: palette.onAccent,
     transform: [{ rotate: "-45deg" }],
   },
+  taskIcon: { fontSize: 19, marginRight: 10 },
   taskName: { fontSize: 16, fontWeight: "700", color: palette.textPrimary },
   taskMeta: { fontSize: 13, color: palette.textMuted, marginTop: 2 },
   blockedTag: { fontSize: 12, color: palette.warning },

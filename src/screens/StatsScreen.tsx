@@ -56,18 +56,25 @@ export default function StatsScreen() {
 
       <View style={styles.summaryRow}>
         <SummaryStat label="Avg. utilization" value={`${avgUtilization}%`} />
-        <SummaryStat label="Over budget" value={`${daysOverBudget} / ${WINDOW_DAYS} days`} />
+        <SummaryStat label="Over budget" value={`${daysOverBudget} / ${WINDOW_DAYS}`} />
+        <SummaryStat
+          label="Usual capacity"
+          value={insights?.avgCapacity == null ? "—" : insights.avgCapacity.toFixed(1)}
+        />
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.chartScroll}
-      >
-        {trend.map((day) => (
-          <DayBar key={day.date} day={day} maxScale={maxScale} />
-        ))}
-      </ScrollView>
+      <View style={styles.chartRow}>
+        <ChartAxis maxScale={maxScale} />
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chartScroll}
+        >
+          {trend.map((day) => (
+            <DayBar key={day.date} day={day} maxScale={maxScale} />
+          ))}
+        </ScrollView>
+      </View>
 
       <View style={styles.legend}>
         <View style={styles.legendItem}>
@@ -207,6 +214,32 @@ function SleepSection({ insight }: { insight: SleepInsight }) {
   );
 }
 
+/**
+ * Y-axis ticks for the chart.
+ *
+ * Without these the bars show relative heights with no idea of scale — a bar
+ * twice as tall could be two spoons or twenty. Rounded to a sensible step so the
+ * labels are whole numbers rather than arbitrary fractions of the maximum.
+ */
+function ChartAxis({ maxScale }: { maxScale: number }) {
+  const styles = useThemedStyles(createStyles);
+  const step = maxScale <= 6 ? 2 : maxScale <= 15 ? 5 : 10;
+  const ticks: number[] = [];
+  for (let value = Math.ceil(maxScale / step) * step; value >= 0; value -= step) {
+    ticks.push(value);
+  }
+
+  return (
+    <View style={styles.axis} pointerEvents="none">
+      {ticks.map((value) => (
+        <View key={value} style={styles.axisTick}>
+          <Text style={styles.axisLabel}>{value}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function SummaryStat({ label, value }: { label: string; value: string }) {
   const styles = useThemedStyles(createStyles);
   return (
@@ -258,10 +291,20 @@ const createStyles = (palette: Palette) =>
     padding: 16,
     alignItems: "center",
   },
-  summaryValue: { fontSize: 22, fontWeight: "700", color: palette.textPrimary },
-  summaryLabel: { fontSize: 12, color: palette.textSecondary, marginTop: 4 },
+  summaryValue: { fontSize: 20, fontWeight: "700", color: palette.textPrimary },
+  summaryLabel: { fontSize: 11, color: palette.textSecondary, marginTop: 4, textAlign: "center" },
+  chartRow: { flexDirection: "row", alignItems: "flex-end" },
+  axis: {
+    height: CHART_HEIGHT,
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    paddingLeft: 16,
+    paddingRight: 6,
+  },
+  axisTick: { height: 12, justifyContent: "center" },
+  axisLabel: { fontSize: 10, color: palette.textMuted },
   chartScroll: {
-    paddingHorizontal: 16,
+    paddingRight: 16,
     alignItems: "flex-end",
     gap: 10,
   },

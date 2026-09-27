@@ -16,7 +16,7 @@ import { HexColor } from "../theme";
  */
 export default function SpoonMark({
   color,
-  size = 16,
+  size = 21,
 }: {
   color: HexColor;
   size?: number;

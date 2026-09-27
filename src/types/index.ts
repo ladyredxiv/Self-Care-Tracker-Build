@@ -34,6 +34,14 @@ export interface Task {
    * mustn't be crowded out by a long-neglected chore.
    */
   isEssential: boolean;
+  /**
+   * Optional emoji shown beside the task, for recognising a row at a glance.
+   *
+   * An emoji rather than a fixed icon set: people track wildly different things,
+   * and any list we shipped would be wrong for someone. Emoji also need no asset,
+   * no dependency, and so no rebuild.
+   */
+  icon: string | null;
   reminderEnabled: boolean;
   reminderTime: string | null; // "HH:MM", 24-hour, local time
   createdAt: string;

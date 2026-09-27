@@ -15,6 +15,7 @@ function task(id: number, name: string, overrides: Partial<TaskWithStatus> = {})
     daysOfWeek: [],
     intervalDays: null,
     isEssential: false,
+    icon: null,
     reminderEnabled: false,
     reminderTime: null,
     createdAt: "2026-01-01T00:00:00.000Z",
