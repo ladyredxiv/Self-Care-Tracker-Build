@@ -64,6 +64,23 @@ export async function showStatusNotification(summary: StatusSummary) {
   });
 }
 
+/**
+ * Whether the ongoing notification is actually on screen.
+ *
+ * Needed because remembering what was last posted isn't enough on its own: the
+ * system clears notifications on reboot, and a stale "already posted this" record
+ * would then suppress it forever.
+ */
+export async function isStatusNotificationPresented(): Promise<boolean> {
+  try {
+    const presented = await Notifications.getPresentedNotificationsAsync();
+    return presented.some((entry) => entry.request.identifier === STATUS_NOTIFICATION_ID);
+  } catch {
+    // Unknown means re-post; a duplicate is better than a missing readout.
+    return false;
+  }
+}
+
 export async function hideStatusNotification() {
   await Notifications.dismissNotificationAsync(STATUS_NOTIFICATION_ID).catch(() => {});
   await Notifications.cancelScheduledNotificationAsync(STATUS_NOTIFICATION_ID).catch(() => {});

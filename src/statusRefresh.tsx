@@ -12,7 +12,12 @@ import { requestWidgetUpdate } from "react-native-android-widget";
 import { todayDateString } from "./db/logic";
 import { isStatusNotificationEnabled, loadDayStatus } from "./db/selectors";
 import { describeStatus } from "./utils/statusText";
-import { hideStatusNotification, showStatusNotification } from "./statusNotification";
+import {
+  hideStatusNotification,
+  isStatusNotificationPresented,
+  showStatusNotification,
+} from "./statusNotification";
+import { getSetting, setSetting, STATUS_LAST_POSTED_KEY } from "./db/database";
 import SpoonsWidget from "./widget/SpoonsWidget";
 
 /**
@@ -24,13 +29,6 @@ import SpoonsWidget from "./widget/SpoonsWidget";
  * regardless of the notification setting — one is a shade entry the user opted into,
  * the other is something they chose to place on their home screen.
  */
-/**
- * What the notification last said. Re-posting an identical notification makes it
- * visibly reappear in the shade, and Home reloads on every focus — so simply
- * moving between the Today and Tasks tabs made it flash each time.
- */
-let lastPosted: string | null = null;
-
 export async function refreshStatusNotification() {
   let summary;
   try {
@@ -51,13 +49,25 @@ export async function refreshStatusNotification() {
       const { title, body } = describeStatus(summary);
       const posted = `${title}
 ${body}`;
-      if (posted !== lastPosted) {
+
+      /**
+       * Re-posting an identical notification makes it visibly reappear in the
+       * shade. Home reloads on every focus, so without this it flashed on each
+       * tab change — and, because the record used to be a module variable that a
+       * cold start reset, on every app launch too. Persisting it fixes the launch
+       * case; checking the notification is still on screen stops a stale record
+       * suppressing it for good after a reboot clears the tray.
+       */
+      const unchanged = getSetting(STATUS_LAST_POSTED_KEY) === posted;
+      // Not an early return: the widget below still needs refreshing even when
+      // the notification is already saying the right thing.
+      if (!unchanged || !(await isStatusNotificationPresented())) {
         await showStatusNotification(summary);
-        lastPosted = posted;
+        setSetting(STATUS_LAST_POSTED_KEY, posted);
       }
     } else {
       await hideStatusNotification();
-      lastPosted = null;
+      setSetting(STATUS_LAST_POSTED_KEY, "");
     }
   } catch (err) {
     console.warn("Status notification refresh failed:", err);

@@ -14,6 +14,7 @@ const db = SQLite.openDatabaseSync("selfcare.db");
 export const DEFAULT_BUDGET_KEY = "defaultBudget";
 export const PROGRESS_STYLE_KEY = "progressStyle";
 export const STATUS_NOTIFICATION_KEY = "statusNotification";
+export const STATUS_LAST_POSTED_KEY = "statusLastPosted";
 
 export function initDatabase() {
   db.execSync(`
