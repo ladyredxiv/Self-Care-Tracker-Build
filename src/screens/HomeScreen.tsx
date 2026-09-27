@@ -21,6 +21,7 @@ import CapacityCard from "../components/CapacityCard";
 import DayReflection from "../components/DayReflection";
 import StartHere from "../components/StartHere";
 import ActionSheet, { SheetOption } from "../components/ActionSheet";
+import RestingCat from "../components/RestingCat";
 import {
   filterTasks,
   groupByTimeOfDay,
@@ -283,6 +284,7 @@ export default function HomeScreen() {
             No tasks scheduled for today yet. Add one below.
           </Text>
         }
+        ListFooterComponent={sections.length > 0 ? <RestingCat /> : null}
         renderSectionHeader={({ section }) => (
           <Text style={styles.sectionHeader}>{section.title}</Text>
         )}
