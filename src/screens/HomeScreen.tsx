@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Alert,
   AppState,
   View,
   Text,
@@ -21,6 +20,7 @@ import {
 import CapacityCard from "../components/CapacityCard";
 import DayReflection from "../components/DayReflection";
 import StartHere from "../components/StartHere";
+import ActionSheet, { SheetOption } from "../components/ActionSheet";
 import {
   filterTasks,
   groupByTimeOfDay,
@@ -81,16 +81,8 @@ export default function HomeScreen() {
   const [progressStyle, setProgressStyleState] = useState<ProgressStyle>("recent");
   const [sleepHours, setSleepHours] = useState<number | null>(null);
   const [taskFilter, setTaskFilter] = useState<TaskFilter>("all");
-
-  const chooseFilter = () => {
-    Alert.alert("Show", undefined, [
-      ...(["all", "due", "done"] as TaskFilter[]).map((value) => ({
-        text: TASK_FILTER_LABELS[value],
-        onPress: () => setTaskFilter(value),
-      })),
-      { text: "Cancel", style: "cancel" as const },
-    ]);
-  };
+  /** Task whose action sheet is open. */
+  const [sheetTask, setSheetTask] = useState<TaskWithStatus | null>(null);
 
   const load = useCallback(() => {
     const status = loadDayStatus(today);
@@ -138,25 +130,6 @@ export default function HomeScreen() {
     load();
   };
 
-  /**
-   * Long press offers a reduced completion. "Did a bit of it" is how a lot of
-   * self-care actually happens — sat down for the shower, ate something cold — and
-   * logging it as nothing is both inaccurate and demoralising.
-   */
-  const promptPartial = (task: TaskWithStatus) => {
-    if (task.completedToday) return;
-    const partial = partialSpoons(task.energyCost);
-    if (partial === task.energyCost) {
-      toggleComplete(task);
-      return;
-    }
-    Alert.alert(task.name, "How much of it did you manage?", [
-      { text: "Cancel", style: "cancel" },
-      { text: `A bit of it (${partial})`, onPress: () => complete(task, partial) },
-      { text: `All of it (${task.energyCost})`, onPress: () => complete(task) },
-    ]);
-  };
-
   const complete = (task: TaskWithStatus, spoons?: number) => {
     completeTask(task.id, today, spoons);
     void clearReminderForCompletion(task.id, today);
@@ -178,6 +151,34 @@ export default function HomeScreen() {
 
   const editTask = (task: TaskWithStatus) => {
     navigation.navigate("TaskForm", { taskId: task.id });
+  };
+
+  const sheetOptions = (task: TaskWithStatus): SheetOption[] => {
+    if (task.completedToday) {
+      return [
+        { label: "Mark as not done", onPress: () => toggleComplete(task) },
+        { label: "Edit task", onPress: () => editTask(task) },
+      ];
+    }
+
+    const partial = partialSpoons(task.energyCost);
+    const options: SheetOption[] = [
+      {
+        label: `Did all of it`,
+        detail: describeCost(task),
+        onPress: () => complete(task),
+      },
+    ];
+    // Only offered when it actually differs — on a 1-spoon task, half is the whole.
+    if (partial !== task.energyCost) {
+      options.push({
+        label: "Did a bit of it",
+        detail: `Counts as ${Math.abs(partial)} instead of ${Math.abs(task.energyCost)}`,
+        onPress: () => complete(task, partial),
+      });
+    }
+    options.push({ label: "Edit task", onPress: () => editTask(task) });
+    return options;
   };
 
   const chooseCapacity = (spoons: number) => {
@@ -231,15 +232,25 @@ export default function HomeScreen() {
         <>
           <StorybookHeader title="Tasks" subtitle="Everything you're tracking" />
           <View style={styles.filterRow}>
-            <Pressable
-              style={styles.filterChip}
-              onPress={chooseFilter}
-              accessibilityRole="button"
-              accessibilityLabel={`Showing ${TASK_FILTER_LABELS[taskFilter]}. Change filter.`}
-            >
-              <Text style={styles.filterChipText}>{TASK_FILTER_LABELS[taskFilter]}</Text>
-              <View style={styles.filterCaret} />
-            </Pressable>
+            {(["all", "due", "done"] as TaskFilter[]).map((value) => {
+              const selected = taskFilter === value;
+              return (
+                <Pressable
+                  key={value}
+                  style={[styles.filterChip, selected && styles.filterChipSelected]}
+                  onPress={() => setTaskFilter(value)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={TASK_FILTER_LABELS[value]}
+                >
+                  <Text
+                    style={[styles.filterChipText, selected && styles.filterChipTextSelected]}
+                  >
+                    {TASK_FILTER_LABELS[value]}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         </>
       ) : (
@@ -279,8 +290,8 @@ export default function HomeScreen() {
           <TaskRow
             task={item}
             onToggle={toggleComplete}
-            onLongPress={promptPartial}
-            onEdit={editTask}
+            onLongPress={setSheetTask}
+            onEdit={setSheetTask}
             disabled={!section.interactive}
             progressStyle={progressStyle}
           />
@@ -293,6 +304,13 @@ export default function HomeScreen() {
       >
         <Text style={styles.addButtonText}>+ Add self-care task</Text>
       </Pressable>
+      <ActionSheet
+        visible={sheetTask !== null}
+        title={sheetTask?.name ?? ""}
+        options={sheetTask ? sheetOptions(sheetTask) : []}
+        onClose={() => setSheetTask(null)}
+      />
+
       <AppTabBar active={isTaskList ? "tasks" : "today"} />
     </View>
   );
@@ -455,29 +473,25 @@ const createStyles = (palette: Palette) =>
   budgetRemaining: { fontSize: 16, fontWeight: "600", color: palette.textPrimary },
   budgetOver: { color: palette.warning },
   listContent: { paddingHorizontal: 16, paddingBottom: 100 },
-  filterRow: { flexDirection: "row", paddingHorizontal: 16, marginTop: 12, marginBottom: 2 },
-  filterChip: {
+  filterRow: {
     flexDirection: "row",
-    alignItems: "center",
     gap: 8,
+    paddingHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 2,
+  },
+  filterChip: {
     minHeight: 36,
+    justifyContent: "center",
     paddingHorizontal: 14,
     borderRadius: 999,
     backgroundColor: palette.surface,
     borderWidth: 1,
     borderColor: palette.border,
   },
+  filterChipSelected: { backgroundColor: palette.accent, borderColor: palette.accent },
   filterChipText: { fontSize: 13, fontWeight: "600", color: palette.textSecondary },
-  /** A caret drawn from a rotated half-border, avoiding another glyph. */
-  filterCaret: {
-    width: 7,
-    height: 7,
-    marginTop: -3,
-    borderRightWidth: 1.5,
-    borderBottomWidth: 1.5,
-    borderColor: palette.textMuted,
-    transform: [{ rotate: "45deg" }],
-  },
+  filterChipTextSelected: { color: palette.onAccent },
   emptyText: { color: palette.textMuted, textAlign: "center", marginTop: 24 },
   sectionHeader: {
     marginTop: 14,

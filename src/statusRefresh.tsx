@@ -11,6 +11,7 @@ import { requestWidgetUpdate } from "react-native-android-widget";
 
 import { todayDateString } from "./db/logic";
 import { isStatusNotificationEnabled, loadDayStatus } from "./db/selectors";
+import { describeStatus } from "./utils/statusText";
 import { hideStatusNotification, showStatusNotification } from "./statusNotification";
 import SpoonsWidget from "./widget/SpoonsWidget";
 
@@ -23,6 +24,13 @@ import SpoonsWidget from "./widget/SpoonsWidget";
  * regardless of the notification setting — one is a shade entry the user opted into,
  * the other is something they chose to place on their home screen.
  */
+/**
+ * What the notification last said. Re-posting an identical notification makes it
+ * visibly reappear in the shade, and Home reloads on every focus — so simply
+ * moving between the Today and Tasks tabs made it flash each time.
+ */
+let lastPosted: string | null = null;
+
 export async function refreshStatusNotification() {
   let summary;
   try {
@@ -40,9 +48,16 @@ export async function refreshStatusNotification() {
 
   try {
     if (isStatusNotificationEnabled()) {
-      await showStatusNotification(summary);
+      const { title, body } = describeStatus(summary);
+      const posted = `${title}
+${body}`;
+      if (posted !== lastPosted) {
+        await showStatusNotification(summary);
+        lastPosted = posted;
+      }
     } else {
       await hideStatusNotification();
+      lastPosted = null;
     }
   } catch (err) {
     console.warn("Status notification refresh failed:", err);
