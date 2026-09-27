@@ -14,6 +14,7 @@ import {
   rankCategoryLoad,
   groupByTimeOfDay,
   dueInfoFor,
+  filterTasks,
   intervalDueFrom,
   isDueOn,
   isRetiredOneOff,
@@ -214,6 +215,62 @@ describe("computeOnTimeStreak", () => {
       completedDatesByTask: new Map([[1, new Set([FRIDAY, "2026-09-23", "2026-09-21"])]]),
     });
     assert.equal(status.tasks[0].streak, 3);
+  });
+});
+
+describe("filterTasks", () => {
+  const withStatus = (
+    id: number,
+    overrides: Partial<TaskWithStatus> = {}
+  ): TaskWithStatus => ({
+    ...makeTask({ id }),
+    completedToday: false,
+    spoonsSpentToday: null,
+    fitsRemainingBudget: true,
+    scheduledToday: true,
+    streak: 0,
+    recentCompletions: 0,
+    daysWaiting: 0,
+    ...overrides,
+  });
+
+  const tasks = [
+    withStatus(1),
+    withStatus(2, { completedToday: true }),
+    withStatus(3, { scheduledToday: false }),
+  ];
+
+  it("passes everything through unchanged for 'all'", () => {
+    assert.deepEqual(
+      filterTasks(tasks, "all").map((t) => t.id),
+      [1, 2, 3]
+    );
+  });
+
+  it("shows only outstanding work for 'due'", () => {
+    // Completed and not-due tasks both drop out: "due today" means still to do.
+    assert.deepEqual(
+      filterTasks(tasks, "due").map((t) => t.id),
+      [1]
+    );
+  });
+
+  it("shows only what's been finished for 'done'", () => {
+    assert.deepEqual(
+      filterTasks(tasks, "done").map((t) => t.id),
+      [2]
+    );
+  });
+
+  it("includes a task completed on an off day under 'done'", () => {
+    const offDayDone = [withStatus(9, { scheduledToday: false, completedToday: true })];
+    assert.equal(filterTasks(offDayDone, "done").length, 1);
+  });
+
+  it("never mutates the list it was given", () => {
+    const original = [...tasks];
+    filterTasks(tasks, "due");
+    assert.deepEqual(tasks, original);
   });
 });
 

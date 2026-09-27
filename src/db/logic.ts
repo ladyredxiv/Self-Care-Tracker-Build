@@ -539,6 +539,32 @@ export function pickStartHere(
     .slice(0, limit);
 }
 
+export type TaskFilter = "all" | "due" | "done";
+
+export const TASK_FILTER_LABELS: Record<TaskFilter, string> = {
+  all: "All tasks",
+  due: "Due today",
+  done: "Done today",
+};
+
+/**
+ * Narrows the task list on the Tasks tab.
+ *
+ * Applied after buildDayStatus rather than inside it, so filtering can never
+ * change what counts as spent or which tasks were allocated a spoon — the budget
+ * has to mean the same thing whichever view you're looking at.
+ */
+export function filterTasks(tasks: TaskWithStatus[], filter: TaskFilter): TaskWithStatus[] {
+  switch (filter) {
+    case "due":
+      return tasks.filter((task) => task.scheduledToday && !task.completedToday);
+    case "done":
+      return tasks.filter((task) => task.completedToday);
+    case "all":
+      return tasks;
+  }
+}
+
 export interface CapacityOption {
   key: string;
   label: string;

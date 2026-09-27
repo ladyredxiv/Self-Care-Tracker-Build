@@ -21,7 +21,15 @@ import {
 import CapacityCard from "../components/CapacityCard";
 import DayReflection from "../components/DayReflection";
 import StartHere from "../components/StartHere";
-import { groupByTimeOfDay, partialSpoons, pickStartHere, todayDateString } from "../db/logic";
+import {
+  filterTasks,
+  groupByTimeOfDay,
+  partialSpoons,
+  pickStartHere,
+  TASK_FILTER_LABELS,
+  TaskFilter,
+  todayDateString,
+} from "../db/logic";
 import {
   confirmCapacity,
   getProgressStyle,
@@ -72,6 +80,17 @@ export default function HomeScreen() {
   const [checkInHidden, setCheckInHidden] = useState(false);
   const [progressStyle, setProgressStyleState] = useState<ProgressStyle>("recent");
   const [sleepHours, setSleepHours] = useState<number | null>(null);
+  const [taskFilter, setTaskFilter] = useState<TaskFilter>("all");
+
+  const chooseFilter = () => {
+    Alert.alert("Show", undefined, [
+      ...(["all", "due", "done"] as TaskFilter[]).map((value) => ({
+        text: TASK_FILTER_LABELS[value],
+        onPress: () => setTaskFilter(value),
+      })),
+      { text: "Cancel", style: "cancel" as const },
+    ]);
+  };
 
   const load = useCallback(() => {
     const status = loadDayStatus(today);
@@ -182,8 +201,11 @@ export default function HomeScreen() {
   const startHere = useMemo(() => pickStartHere(tasks), [tasks]);
 
   const sections = useMemo<TaskSection[]>(() => {
+    // Filtering only applies on the Tasks tab; Today always shows the day as it is.
+    const visible = isTaskList ? filterTasks(tasks, taskFilter) : tasks;
+
     const result: TaskSection[] = groupByTimeOfDay(
-      tasks.filter((t) => t.scheduledToday)
+      visible.filter((t) => t.scheduledToday)
     ).map((group) => ({
       key: group.timeOfDay,
       title: TIME_OF_DAY_LABELS[group.timeOfDay],
@@ -191,7 +213,7 @@ export default function HomeScreen() {
       interactive: true,
     }));
 
-    const unscheduled = tasks.filter((t) => !t.scheduledToday);
+    const unscheduled = visible.filter((t) => !t.scheduledToday);
     if (unscheduled.length > 0) {
       result.push({
         key: "unscheduled",
@@ -201,15 +223,25 @@ export default function HomeScreen() {
       });
     }
     return result;
-  }, [tasks]);
+  }, [tasks, isTaskList, taskFilter]);
 
   return (
     <View style={[styles.container, { paddingTop }]}>
       {isTaskList ? (
-        <StorybookHeader
-          title="Today"
-          subtitle={new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
-        />
+        <>
+          <StorybookHeader title="Tasks" subtitle="Everything you're tracking" />
+          <View style={styles.filterRow}>
+            <Pressable
+              style={styles.filterChip}
+              onPress={chooseFilter}
+              accessibilityRole="button"
+              accessibilityLabel={`Showing ${TASK_FILTER_LABELS[taskFilter]}. Change filter.`}
+            >
+              <Text style={styles.filterChipText}>{TASK_FILTER_LABELS[taskFilter]}</Text>
+              <View style={styles.filterCaret} />
+            </Pressable>
+          </View>
+        </>
       ) : (
         <CapacityCard
           budget={budget}
@@ -422,6 +454,29 @@ const createStyles = (palette: Palette) =>
   budgetRemaining: { fontSize: 16, fontWeight: "600", color: palette.textPrimary },
   budgetOver: { color: palette.warning },
   listContent: { paddingHorizontal: 16, paddingBottom: 100 },
+  filterRow: { flexDirection: "row", paddingHorizontal: 16, marginTop: 12, marginBottom: 2 },
+  filterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minHeight: 36,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  filterChipText: { fontSize: 13, fontWeight: "600", color: palette.textSecondary },
+  /** A caret drawn from a rotated half-border, avoiding another glyph. */
+  filterCaret: {
+    width: 7,
+    height: 7,
+    marginTop: -3,
+    borderRightWidth: 1.5,
+    borderBottomWidth: 1.5,
+    borderColor: palette.textMuted,
+    transform: [{ rotate: "45deg" }],
+  },
   emptyText: { color: palette.textMuted, textAlign: "center", marginTop: 24 },
   sectionHeader: {
     marginTop: 14,

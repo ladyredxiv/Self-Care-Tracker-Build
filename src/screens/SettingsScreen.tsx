@@ -177,6 +177,8 @@ export default function SettingsScreen() {
     >
       <StorybookHeader title="Settings" subtitle="Make the app fit your actual life" fullBleed />
 
+      <Text style={styles.groupHeading}>Daily life</Text>
+
       <View style={styles.reminderRow}>
         <Text style={styles.sectionLabel}>Keep spoons in the notification shade</Text>
         <Switch
@@ -205,6 +207,8 @@ export default function SettingsScreen() {
 
       <View style={styles.divider} />
 
+      <Text style={styles.groupHeading}>Progress &amp; motivation</Text>
+
       <Text style={styles.sectionLabel}>Showing progress</Text>
       <Text style={styles.sectionBody}>
         A streak resets to zero after a bad couple of days. A count over the last 30
@@ -229,6 +233,8 @@ export default function SettingsScreen() {
 
       <View style={styles.divider} />
 
+      <Text style={styles.groupHeading}>Data &amp; privacy</Text>
+
       <Text style={styles.sectionLabel}>Summary for an appointment</Text>
       <Text style={styles.sectionBody}>
         A plain-text log of your capacity, what you spent, how days went, and whether
@@ -249,27 +255,7 @@ export default function SettingsScreen() {
         ))}
       </View>
 
-      <View style={styles.divider} />
-
-      <Text style={styles.sectionLabel}>Appearance</Text>
-      <View style={styles.chipRow}>
-        {APPEARANCE_OPTIONS.map((option) => {
-          const selected = preference === option.value;
-          return (
-            <Pressable
-              key={option.value}
-              style={[styles.chip, selected && styles.chipSelected]}
-              onPress={() => setPreference(option.value)}
-            >
-              <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
-                {option.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <View style={styles.divider} />
+      <View style={styles.dividerSoft} />
 
       <Text style={styles.sectionLabel}>Your data</Text>
       <Text style={styles.sectionBody}>
@@ -303,6 +289,30 @@ export default function SettingsScreen() {
 
       <View style={styles.divider} />
 
+      <Text style={styles.groupHeading}>Appearance &amp; app</Text>
+
+      <Text style={styles.sectionLabel}>Appearance</Text>
+      <View style={styles.chipRow}>
+        {APPEARANCE_OPTIONS.map((option) => {
+          const selected = preference === option.value;
+          return (
+            <Pressable
+              key={option.value}
+              style={[styles.chip, selected && styles.chipSelected]}
+              onPress={() => setPreference(option.value)}
+            >
+              <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={styles.divider} />
+
+      <View style={styles.divider} />
+
       <Text style={styles.sectionLabel}>App updates</Text>
       <Text style={styles.sectionBody}>
         Currently running: {describeBundle()}
@@ -329,6 +339,17 @@ const createStyles = (palette: Palette) =>
   container: { flex: 1, backgroundColor: palette.background },
   content: { paddingHorizontal: 20 },
   sectionLabel: { fontSize: 16, fontWeight: "700", color: palette.textPrimary, marginBottom: 6, flex: 1 },
+  /** The four areas from the mockup, so this reads as groups rather than a list. */
+  groupHeading: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    color: palette.highlight,
+    marginBottom: 14,
+  },
+  /** Separates settings inside a group, where the full divider would over-segment. */
+  dividerSoft: { height: 18 },
   reminderRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   sectionBody: { fontSize: 14, color: palette.textMuted, lineHeight: 20, marginBottom: 20 },
   button: {
