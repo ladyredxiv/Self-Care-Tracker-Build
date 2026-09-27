@@ -221,8 +221,6 @@ export default function HomeScreen() {
           onBudgetCommit={saveBudget}
           onChoose={chooseCapacity}
           onDismiss={() => setCheckInHidden(true)}
-          onOpenTrends={() => navigation.navigate("Stats")}
-          onOpenSettings={() => navigation.navigate("Settings")}
         />
       )}
 

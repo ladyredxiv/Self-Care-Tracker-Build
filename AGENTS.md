@@ -11,8 +11,24 @@ push tokens), so nothing here needs Google Play Services.
 
 # EAS release compatibility
 
-Use `runtimeVersion.policy: "appVersion"` (Morgan approved replacing fingerprint).
-The current native runtime is 1.0.1. Before changing native dependencies or native
-app configuration, bump `expo.version` and build a new APK. Keep package.json and
-the root package-lock.json versions aligned. JS/assets-only updates can retain
-the version and ship to the existing `preview` EAS Update channel.
+Use `runtimeVersion.policy: "fingerprint"`. Do not change this to `appVersion`
+without rebuilding and reinstalling the APK first.
+
+It was briefly switched to `appVersion` with the version bumped to 1.0.1. That
+silently broke update delivery: the installed APK was built under `fingerprint`,
+so its embedded runtime is the hash `a966e026...`, while `eas update` then stamped
+updates `"1.0.1"`. Nothing matched, so "Check for updates" reported "nothing new"
+forever with no error anywhere. Reverting to `fingerprint` at version 1.0.0
+reproduces `a966e026...` exactly and restores delivery with no rebuild — verified
+with `npx expo-updates fingerprint:generate --platform android`.
+
+The two policies fail in opposite directions, which is the real reason for the
+choice. `fingerprint` fails safe: a mismatched update is simply never delivered.
+`appVersion` fails loud: the update IS delivered, and if native dependencies
+changed without someone remembering to bump the version, the app can crash on
+launch. For an app used daily for health tracking, silence beats a crash.
+
+Practical consequence: adding or removing ANY dependency changes the fingerprint
+and requires a new APK. JS/asset-only changes keep it stable and ship over the air
+to the `preview` channel. Always confirm with `fingerprint:generate` before
+publishing, and compare against `eas build:list`.

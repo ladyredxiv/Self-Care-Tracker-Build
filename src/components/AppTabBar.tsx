@@ -2,21 +2,23 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Palette, useThemedStyles } from "../theme";
+import { Palette, useTheme, useThemedStyles } from "../theme";
+import TabIcon, { TabIconName } from "./TabIcon";
 
 type Tab = "today" | "trends" | "tasks" | "settings";
 
-const tabs: { id: Tab; label: string; glyph: string; screen: string }[] = [
-  { id: "today", label: "Today", glyph: "◐", screen: "Home" },
-  { id: "trends", label: "Trends", glyph: "▥", screen: "Stats" },
-  { id: "tasks", label: "Tasks", glyph: "☷", screen: "Tasks" },
-  { id: "settings", label: "Settings", glyph: "⚙", screen: "Settings" },
+const tabs: { id: Tab; label: string; icon: TabIconName; screen: string }[] = [
+  { id: "today", label: "Today", icon: "today", screen: "Home" },
+  { id: "trends", label: "Trends", icon: "trends", screen: "Stats" },
+  { id: "tasks", label: "Tasks", icon: "tasks", screen: "Tasks" },
+  { id: "settings", label: "Settings", icon: "settings", screen: "Settings" },
 ];
 
 export default function AppTabBar({ active }: { active: Tab }) {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const styles = useThemedStyles(createStyles);
+  const { palette } = useTheme();
 
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 10) }]}>
@@ -31,7 +33,10 @@ export default function AppTabBar({ active }: { active: Tab }) {
             accessibilityState={{ selected }}
             accessibilityLabel={tab.label}
           >
-            <Text style={[styles.glyph, selected && styles.glyphActive]}>{tab.glyph}</Text>
+            <TabIcon
+              name={tab.icon}
+              color={selected ? palette.accent : palette.icon}
+            />
             <Text style={[styles.label, selected && styles.labelActive]}>{tab.label}</Text>
           </Pressable>
         );
@@ -53,9 +58,7 @@ const createStyles = (palette: Palette) =>
       shadowRadius: 16,
       elevation: 12,
     },
-    tab: { flex: 1, minHeight: 46, alignItems: "center", justifyContent: "center" },
-    glyph: { color: palette.icon, fontSize: 20, lineHeight: 22 },
-    glyphActive: { color: palette.accent },
+    tab: { flex: 1, minHeight: 46, alignItems: "center", justifyContent: "center", gap: 3 },
     label: { fontSize: 11, color: palette.textMuted, marginTop: 2 },
     labelActive: { color: palette.textPrimary, fontWeight: "700" },
   });

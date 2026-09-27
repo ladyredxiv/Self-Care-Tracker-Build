@@ -25,19 +25,39 @@ describe("spoonMeterModel", () => {
     assert.equal(describeSpoons(model, 10), "3 past your 10");
   });
 
-  it("treats going above budget as a bonus rather than inventing marks", () => {
-    // A restorative activity can leave you above the day's budget. Adding extra
-    // marks would make the row's length stop meaning anything.
+  it("draws extra marks when a top-up puts you above the budget", () => {
+    // The marks exist to be counted without arithmetic, so they have to show the
+    // true number available. Capping at the budget would mean 12 available spoons
+    // rendered as 10 marks, sending you back to reading the number.
     const model = spoonMeterModel(10, -2);
-    assert.equal(model.filled, 10);
+    assert.equal(model.filled, 12);
     assert.equal(model.empty, 0);
     assert.equal(model.bonus, 2);
-    assert.equal(describeSpoons(model, 10), "12 left of 10");
+    assert.equal(describeSpoons(model, 10), "12 left — 2 topped up");
+  });
+
+  it("keeps the count right when a top-up follows some spending", () => {
+    // Spent 3, then a top-up gave 2 back: net 1 spent, so 9 left of 10.
+    const model = spoonMeterModel(10, 1);
+    assert.equal(model.filled, 9);
+    assert.equal(model.empty, 1);
+    assert.equal(model.bonus, 0);
+  });
+
+  it("does not draw more empties than the budget when overspent", () => {
+    const model = spoonMeterModel(10, 14);
+    assert.equal(model.empty, 10);
+    assert.equal(model.over, 4);
   });
 
   it("switches to a bar once marks stop being countable", () => {
     assert.equal(spoonMeterModel(MAX_SPOON_MARKS, 0).mode, "marks");
     assert.equal(spoonMeterModel(MAX_SPOON_MARKS + 1, 0).mode, "bar");
+  });
+
+  it("switches to a bar when top-ups push the mark count too high", () => {
+    // Budget alone is countable, but the extra marks take it past the limit.
+    assert.equal(spoonMeterModel(MAX_SPOON_MARKS, -1).mode, "bar");
   });
 
   it("gives a proportional fill for the bar", () => {

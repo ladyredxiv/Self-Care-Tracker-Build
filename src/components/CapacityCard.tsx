@@ -24,8 +24,6 @@ export default function CapacityCard({
   onBudgetCommit,
   onChoose,
   onDismiss,
-  onOpenTrends,
-  onOpenSettings,
 }: {
   budget: number;
   spent: number;
@@ -36,8 +34,6 @@ export default function CapacityCard({
   onBudgetCommit: () => void;
   onChoose: (spoons: number) => void;
   onDismiss: () => void;
-  onOpenTrends: () => void;
-  onOpenSettings: () => void;
 }) {
   const styles = useThemedStyles(createStyles);
 
@@ -48,26 +44,6 @@ export default function CapacityCard({
         <View>
           <Text style={styles.title}>Today</Text>
           <Text style={styles.date}>{new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}</Text>
-        </View>
-        <View style={styles.headerLinks}>
-          <Pressable
-            onPress={onOpenTrends}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel="Trends"
-            style={styles.iconButton}
-          >
-            <Text style={styles.headerLink}>Trends</Text>
-          </Pressable>
-          <Pressable
-            onPress={onOpenSettings}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel="Settings"
-            style={styles.iconButton}
-          >
-            <Text style={styles.gear}>⚙</Text>
-          </Pressable>
         </View>
       </View>
 
@@ -136,11 +112,6 @@ const createStyles = (palette: Palette) =>
     header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
     title: { fontSize: 34, lineHeight: 38, fontFamily: "serif", fontWeight: "700", color: "#fff8ed" },
     date: { fontSize: 15, color: "#fff2e5", marginTop: 1 },
-    headerLinks: { flexDirection: "row", alignItems: "center", gap: 4 },
-    // 44dp tall targets; these were previously bare glyphs relying on hitSlop.
-    iconButton: { height: 44, paddingHorizontal: 8, justifyContent: "center" },
-    headerLink: { fontSize: 13, fontWeight: "700", color: "#fff7ed" },
-    gear: { fontSize: 25, color: "#fff7ed" },
 
     question: { fontSize: 17, fontWeight: "700", color: "#fff8ed", marginTop: 10 },
     subtitle: { fontSize: 13, color: "#f7ddd0", marginTop: 2 },

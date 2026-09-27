@@ -2,7 +2,7 @@
   "expo": {
     "name": "Spoons",
     "slug": "spoons",
-    "version": "1.0.1",
+    "version": "1.0.0",
     "orientation": "portrait",
     "platforms": [
       "android",
@@ -16,7 +16,7 @@
       "fallbackToCacheTimeout": 0
     },
     "runtimeVersion": {
-      "policy": "appVersion"
+      "policy": "fingerprint"
     },
     "ios": {
       "supportsTablet": true

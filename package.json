@@ -1,6 +1,6 @@
 {
   "name": "spoons",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
