@@ -8,3 +8,11 @@ rather than assuming.
 
 Target Android. Reminders are **local** scheduled notifications only (no FCM, no
 push tokens), so nothing here needs Google Play Services.
+
+# EAS release compatibility
+
+Use `runtimeVersion.policy: "appVersion"` (Morgan approved replacing fingerprint).
+The current native runtime is 1.0.1. Before changing native dependencies or native
+app configuration, bump `expo.version` and build a new APK. Keep package.json and
+the root package-lock.json versions aligned. JS/assets-only updates can retain
+the version and ship to the existing `preview` EAS Update channel.
