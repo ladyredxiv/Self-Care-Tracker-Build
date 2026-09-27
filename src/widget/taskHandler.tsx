@@ -1,4 +1,3 @@
-import { Appearance } from "react-native";
 import type { WidgetTaskHandlerProps } from "react-native-android-widget";
 
 import { initDatabase } from "../db/database";
@@ -20,8 +19,6 @@ import SpoonsWidget from "./SpoonsWidget";
  * as a blank box on the home screen with nothing to explain it.
  */
 export async function widgetTaskHandler(props: WidgetTaskHandlerProps) {
-  const isDark = Appearance.getColorScheme() === "dark";
-
   if (props.widgetAction === "WIDGET_DELETED") return;
 
   let summary: StatusSummary;
@@ -39,5 +36,5 @@ export async function widgetTaskHandler(props: WidgetTaskHandlerProps) {
     summary = { spent: 0, budget: 0, remaining: 0, tasks: [] };
   }
 
-  props.renderWidget(<SpoonsWidget summary={summary} isDark={isDark} />);
+  props.renderWidget(<SpoonsWidget summary={summary} />);
 }

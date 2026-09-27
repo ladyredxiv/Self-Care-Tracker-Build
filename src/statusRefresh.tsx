@@ -6,7 +6,7 @@
  * notifications.
  */
 
-import { Appearance, Platform } from "react-native";
+import { Platform } from "react-native";
 import { requestWidgetUpdate } from "react-native-android-widget";
 
 import { todayDateString } from "./db/logic";
@@ -68,9 +68,7 @@ ${body}`;
     // A no-op when the widget isn't on the home screen, so this needs no setting.
     await requestWidgetUpdate({
       widgetName: "Spoons",
-      renderWidget: () => (
-        <SpoonsWidget summary={summary} isDark={Appearance.getColorScheme() === "dark"} />
-      ),
+      renderWidget: () => <SpoonsWidget summary={summary} />,
     });
   } catch (err) {
     console.warn("Widget refresh failed:", err);
