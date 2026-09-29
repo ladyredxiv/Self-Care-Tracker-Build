@@ -10,11 +10,13 @@ import { Platform } from "react-native";
 import { requestWidgetUpdate } from "react-native-android-widget";
 
 import { todayDateString } from "./db/logic";
-import { isStatusNotificationEnabled, loadDayStatus } from "./db/selectors";
+import { shiftDateString } from "./utils/date";
+import { isStatusNotificationEnabled, loadDayStatus, previewDayStatus } from "./db/selectors";
 import { describeStatus } from "./utils/statusText";
 import {
   hideStatusNotification,
   isStatusNotificationPresented,
+  scheduleStatusForTomorrow,
   showStatusNotification,
 } from "./statusNotification";
 import { getSetting, setSetting, STATUS_LAST_POSTED_KEY } from "./db/database";
@@ -30,9 +32,10 @@ import SpoonsWidget from "./widget/SpoonsWidget";
  * the other is something they chose to place on their home screen.
  */
 export async function refreshStatusNotification() {
+  const today = todayDateString();
   let summary;
   try {
-    const status = loadDayStatus(todayDateString());
+    const status = loadDayStatus(today);
     summary = {
       spent: status.spent,
       budget: status.budget,
@@ -65,6 +68,23 @@ ${body}`;
         await showStatusNotification(summary);
         setSetting(STATUS_LAST_POSTED_KEY, posted);
       }
+
+      /**
+       * Nothing recomputes this while the app is closed, so the readout sat
+       * showing yesterday's spoons until the app was next opened — wrong way round
+       * for something you check before getting up. Queue tomorrow's now.
+       */
+      const tomorrow = shiftDateString(today, 1);
+      const preview = previewDayStatus(tomorrow);
+      await scheduleStatusForTomorrow(
+        {
+          spent: preview.spent,
+          budget: preview.budget,
+          remaining: preview.remaining,
+          tasks: preview.tasks,
+        },
+        today
+      );
     } else {
       await hideStatusNotification();
       setSetting(STATUS_LAST_POSTED_KEY, "");

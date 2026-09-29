@@ -73,6 +73,25 @@ export function loadDayStatus(date: string): DayStatus {
   });
 }
 
+/**
+ * Day status WITHOUT materialising a budget row for the date.
+ *
+ * loadDayStatus freezes a day's budget the first time it's opened, which is right
+ * for today and wrong for tomorrow: pre-creating it would lock tomorrow in at
+ * whatever the default happens to be now, so changing the default later today
+ * would silently not apply. This is for previewing a day we haven't reached.
+ */
+export function previewDayStatus(date: string): DayStatus {
+  return buildDayStatus({
+    tasks: getAllTasks(),
+    date,
+    budget: getBudgetForDate(date) ?? getDefaultBudget(),
+    completedTaskIds: new Set(getCompletionsForDate(date)),
+    completedDatesByTask: getCompletedDatesByTask(),
+    spoonsSpentByTask: getSpoonsSpentForDate(date),
+  });
+}
+
 export function getProgressStyle(): ProgressStyle {
   const raw = getSetting(PROGRESS_STYLE_KEY);
   return raw === "streak" || raw === "hidden" || raw === "recent" ? raw : "recent";

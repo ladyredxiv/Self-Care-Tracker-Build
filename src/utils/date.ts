@@ -59,6 +59,18 @@ export function dateStringFromISO(iso: string, fallback: string): string {
   return Number.isNaN(parsed.getTime()) ? fallback : toDateString(parsed);
 }
 
+/**
+ * Local moment shortly after midnight beginning the day after `date`.
+ *
+ * A minute past rather than exactly midnight: scheduling on the boundary invites
+ * the delivery landing a hair early and still computing the old day.
+ */
+export function startOfNextDay(date: string, minutesPast: number = 1): Date {
+  const next = parseDateString(shiftDateString(date, 1));
+  next.setHours(0, minutesPast, 0, 0);
+  return next;
+}
+
 /** Day of week (0 = Sunday) for a local date string. */
 export function dayOfWeekFor(date: string): DayOfWeek {
   return parseDateString(date).getDay() as DayOfWeek;

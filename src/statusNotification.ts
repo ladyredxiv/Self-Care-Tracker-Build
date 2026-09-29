@@ -13,6 +13,7 @@ import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 
 import { pickStartHere } from "./db/logic";
+import { startOfNextDay } from "./utils/date";
 import { describeStatus, StatusSummary } from "./utils/statusText";
 
 export { describeStatus } from "./utils/statusText";
@@ -79,6 +80,36 @@ export async function isStatusNotificationPresented(): Promise<boolean> {
     // Unknown means re-post; a duplicate is better than a missing readout.
     return false;
   }
+}
+
+/**
+ * Queues the readout for the start of tomorrow.
+ *
+ * Nothing recomputes the notification while the app is closed, so without this it
+ * sits showing yesterday's spoons until the app is next opened — which for an app
+ * you check *before* getting up is exactly the wrong way round. Same identifier,
+ * so on delivery it replaces the current one rather than stacking.
+ *
+ * It's a prediction: it assumes tomorrow starts at the default budget with nothing
+ * done. Opening the app corrects it, and any completion re-runs this.
+ */
+export async function scheduleStatusForTomorrow(summary: StatusSummary, today: string) {
+  const { title, body } = describeStatus(summary);
+  await Notifications.scheduleNotificationAsync({
+    identifier: STATUS_NOTIFICATION_ID,
+    content: {
+      title,
+      body,
+      sticky: true,
+      autoDismiss: false,
+      data: {},
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: startOfNextDay(today),
+      channelId: STATUS_CHANNEL_ID,
+    },
+  });
 }
 
 export async function hideStatusNotification() {

@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { addDays, dayOfWeekFor, parseDateString, shiftDateString, toDateString } from "./date";
+import {
+  addDays,
+  dayOfWeekFor,
+  parseDateString,
+  shiftDateString,
+  startOfNextDay,
+  toDateString,
+} from "./date";
 
 describe("toDateString", () => {
   it("uses the local calendar date, not UTC", () => {
@@ -52,6 +59,34 @@ describe("addDays / shiftDateString", () => {
     const original = new Date(2026, 8, 25);
     addDays(original, -5);
     assert.equal(original.getDate(), 25);
+  });
+});
+
+describe("startOfNextDay", () => {
+  it("lands just after midnight on the following day", () => {
+    const at = startOfNextDay("2026-09-27");
+    assert.equal(toDateString(at), "2026-09-28");
+    assert.equal(at.getHours(), 0);
+    assert.equal(at.getMinutes(), 1);
+  });
+
+  it("is not exactly midnight", () => {
+    // Scheduling on the boundary risks delivering a hair early and computing the
+    // day that just ended.
+    assert.ok(startOfNextDay("2026-09-27").getMinutes() > 0);
+  });
+
+  it("crosses a month boundary", () => {
+    assert.equal(toDateString(startOfNextDay("2026-09-30")), "2026-10-01");
+  });
+
+  it("crosses a year boundary", () => {
+    assert.equal(toDateString(startOfNextDay("2026-12-31")), "2027-01-01");
+  });
+
+  it("is always in the future relative to its own date", () => {
+    const date = "2026-09-27";
+    assert.ok(startOfNextDay(date).getTime() > parseDateString(date).getTime());
   });
 });
 
