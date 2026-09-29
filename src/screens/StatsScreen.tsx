@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { DayUsage, describePayback, todayDateString } from "../db/logic";
-import { Insights, loadInsights, loadSleepInsight, loadUsageTrend } from "../db/selectors";
+import { Insights, loadInsights, loadSleepInsight, loadWeekUsage } from "../db/selectors";
 import { describeSleep, formatSleepDuration, SleepInsight } from "../utils/sleepInsight";
 import { useScreenPadding } from "../hooks/useScreenPadding";
 import { Palette, useThemedStyles } from "../theme";
@@ -10,7 +10,6 @@ import { parseDateString } from "../utils/date";
 import AppTabBar from "../components/AppTabBar";
 import StorybookHeader from "../components/StorybookHeader";
 
-const WINDOW_DAYS = 14;
 /** Wider than the chart: payback needs enough overspends with ratings after them. */
 const INSIGHT_DAYS = 30;
 const CHART_HEIGHT = 140;
@@ -20,13 +19,15 @@ export default function StatsScreen() {
   const styles = useThemedStyles(createStyles);
   const { paddingTop } = useScreenPadding();
   const [trend, setTrend] = useState<DayUsage[]>([]);
+  const [today, setToday] = useState(todayDateString);
   const [insights, setInsights] = useState<Insights | null>(null);
   const [sleep, setSleep] = useState<SleepInsight | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       const today = todayDateString();
-      setTrend(loadUsageTrend(WINDOW_DAYS, today));
+      setToday(today);
+      setTrend(loadWeekUsage(today));
       setInsights(loadInsights(INSIGHT_DAYS, today));
       // Resolves later, or never on a device without Health Connect; the rest of
       // the screen doesn't wait for it.
@@ -34,7 +35,8 @@ export default function StatsScreen() {
     }, [])
   );
 
-  const daysWithData = trend.filter((d) => d.spent > 0 || d.restored > 0 || d.hasExplicitBudget);
+  const elapsed = trend.filter((d) => d.date <= today);
+  const daysWithData = elapsed.filter((d) => d.spent > 0 || d.restored > 0 || d.hasExplicitBudget);
   const avgUtilization =
     daysWithData.length > 0
       ? Math.round(
@@ -44,8 +46,10 @@ export default function StatsScreen() {
         )
       : 0;
   // Over capacity, so a day topped up by restoratives isn't counted as an overspend.
-  const daysOverBudget = trend.filter((d) => d.spent > d.capacity).length;
-  const maxScale = Math.max(1, ...trend.map((d) => Math.max(d.capacity, d.spent)));
+  const daysOverBudget = elapsed.filter((d) => d.spent > d.capacity).length;
+  // Future days are excluded from the scale too, or an untouched Saturday's default
+  // capacity could set the height for the whole week.
+  const maxScale = Math.max(1, ...elapsed.map((d) => Math.max(d.capacity, d.spent)));
 
   return (
     <View style={styles.screen}>
@@ -57,12 +61,14 @@ export default function StatsScreen() {
 
       <View style={styles.summaryRow}>
         <SummaryStat label="Avg. utilization" value={`${avgUtilization}%`} />
-        <SummaryStat label="Over budget" value={`${daysOverBudget} / ${WINDOW_DAYS}`} />
+        <SummaryStat label="Over capacity" value={`${daysOverBudget} / ${elapsed.length}`} />
         <SummaryStat
           label="Usual capacity"
           value={insights?.avgCapacity == null ? "—" : insights.avgCapacity.toFixed(1)}
         />
       </View>
+
+      <Text style={styles.chartHeading}>This week</Text>
 
       <View style={styles.chartRow}>
         <ChartAxis maxScale={maxScale} />
@@ -72,7 +78,13 @@ export default function StatsScreen() {
           contentContainerStyle={styles.chartScroll}
         >
           {trend.map((day) => (
-            <DayBar key={day.date} day={day} maxScale={maxScale} />
+            <DayBar
+              key={day.date}
+              day={day}
+              maxScale={maxScale}
+              isToday={day.date === today}
+              isFuture={day.date > today}
+            />
           ))}
         </ScrollView>
       </View>
@@ -257,7 +269,17 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function DayBar({ day, maxScale }: { day: DayUsage; maxScale: number }) {
+function DayBar({
+  day,
+  maxScale,
+  isToday,
+  isFuture,
+}: {
+  day: DayUsage;
+  maxScale: number;
+  isToday: boolean;
+  isFuture: boolean;
+}) {
   const styles = useThemedStyles(createStyles);
   // Against capacity rather than budget: restoring raises what was available, so a
   // 3-spoon day on a 10 budget with 2 restored is 3 of 12, not 3 of 10.
@@ -271,14 +293,22 @@ function DayBar({ day, maxScale }: { day: DayUsage; maxScale: number }) {
   return (
     <View style={styles.dayColumn}>
       <View style={[styles.barTrack, { height: CHART_HEIGHT }]}>
-        <View style={[styles.budgetBar, { height: budgetHeight }]} />
+        {/* A day not yet reached has no capacity to show — drawing the default
+            would imply a budget that hasn't been set. */}
+        <View
+          style={[
+            styles.budgetBar,
+            isFuture ? styles.futureBar : null,
+            { height: isFuture ? 6 : budgetHeight },
+          ]}
+        />
         <View style={styles.spentStack}>
           {overHeight > 0 && <View style={[styles.overBar, { height: overHeight }]} />}
           <View style={[styles.spentBar, { height: spentHeight }]} />
         </View>
       </View>
-      <Text style={styles.dayLabel}>{dateLabel}</Text>
-      <Text style={styles.dayNumber}>{dayLabel}</Text>
+      <Text style={[styles.dayLabel, isToday && styles.dayLabelToday]}>{dateLabel}</Text>
+      <Text style={[styles.dayNumber, isToday && styles.dayNumberToday]}>{dayLabel}</Text>
     </View>
   );
 }
@@ -347,7 +377,19 @@ const createStyles = (palette: Palette) =>
     borderTopRightRadius: 5,
   },
   dayLabel: { fontSize: 11, color: palette.textMuted, marginTop: 8 },
+  dayLabelToday: { color: palette.highlight, fontWeight: "700" },
   dayNumber: { fontSize: 12, color: palette.textPrimary, fontWeight: "600" },
+  dayNumberToday: { color: palette.highlight },
+  futureBar: { backgroundColor: palette.borderSubtle },
+  chartHeading: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: palette.textMuted,
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
   legend: {
     flexDirection: "row",
     flexWrap: "wrap",

@@ -7,7 +7,9 @@ import {
   parseDateString,
   shiftDateString,
   startOfNextDay,
+  startOfWeek,
   toDateString,
+  weekDates,
 } from "./date";
 
 describe("toDateString", () => {
@@ -59,6 +61,40 @@ describe("addDays / shiftDateString", () => {
     const original = new Date(2026, 8, 25);
     addDays(original, -5);
     assert.equal(original.getDate(), 25);
+  });
+});
+
+describe("startOfWeek / weekDates", () => {
+  // 2026-09-27 is a Sunday, so that week runs to Saturday 2026-10-03.
+  it("returns the date itself when it is already Sunday", () => {
+    assert.equal(startOfWeek("2026-09-27"), "2026-09-27");
+  });
+
+  it("walks back to Sunday from mid-week", () => {
+    assert.equal(startOfWeek("2026-09-29"), "2026-09-27");
+    assert.equal(startOfWeek("2026-10-03"), "2026-09-27");
+  });
+
+  it("gives seven dates, Sunday first and Saturday last", () => {
+    const week = weekDates("2026-09-29");
+    assert.equal(week.length, 7);
+    assert.equal(week[0], "2026-09-27");
+    assert.equal(week[6], "2026-10-03");
+  });
+
+  it("crosses a month boundary within one week", () => {
+    assert.deepEqual(weekDates("2026-10-01").slice(3, 6), [
+      "2026-09-30",
+      "2026-10-01",
+      "2026-10-02",
+    ]);
+  });
+
+  it("gives the same week for every day in it", () => {
+    const week = weekDates("2026-09-27");
+    for (const date of week) {
+      assert.deepEqual(weekDates(date), week, `${date} produced a different week`);
+    }
   });
 });
 

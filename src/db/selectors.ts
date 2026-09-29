@@ -3,7 +3,7 @@
  * from here so there's exactly one place that decides what "today" looks like.
  */
 
-import { shiftDateString } from "../utils/date";
+import { shiftDateString, weekDates } from "../utils/date";
 import { readSleepHours } from "../health";
 import { analyseSleep, SleepDay, SleepInsight } from "../utils/sleepInsight";
 import { SummaryInput, TaskSummaryLine } from "../utils/summaryReport";
@@ -271,16 +271,18 @@ function describeScheduleForReport(task: Task): string {
   }
 }
 
-export function loadUsageTrend(days: number, today: string): DayUsage[] {
-  const dates: string[] = [];
-  for (let i = days - 1; i >= 0; i--) {
-    dates.push(shiftDateString(today, -i));
-  }
-
+/**
+ * The calendar week containing `today`, Sunday to Saturday.
+ *
+ * A fixed week rather than a rolling window: on a rolling chart every bar shifts
+ * daily and there's no stable sense of where you are in the week. Days later in
+ * the week are included so the shape of the week is visible, and the chart draws
+ * them as empty rather than inventing a capacity for a day not yet reached.
+ */
+export function loadWeekUsage(today: string): DayUsage[] {
+  const dates = weekDates(today);
   const budgetByDate: Record<string, number | null> = {};
-  for (const date of dates) {
-    budgetByDate[date] = getBudgetForDate(date);
-  }
+  for (const date of dates) budgetByDate[date] = getBudgetForDate(date);
 
   return buildUsageTrend(
     dates,
@@ -289,3 +291,4 @@ export function loadUsageTrend(days: number, today: string): DayUsage[] {
     getDefaultBudget()
   );
 }
+

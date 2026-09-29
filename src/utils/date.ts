@@ -71,6 +71,17 @@ export function startOfNextDay(date: string, minutesPast: number = 1): Date {
   return next;
 }
 
+/** The Sunday beginning the calendar week containing `date`. */
+export function startOfWeek(date: string): string {
+  return shiftDateString(date, -dayOfWeekFor(date));
+}
+
+/** The seven dates of the calendar week containing `date`, Sunday first. */
+export function weekDates(date: string): string[] {
+  const sunday = startOfWeek(date);
+  return Array.from({ length: 7 }, (_, i) => shiftDateString(sunday, i));
+}
+
 /** Day of week (0 = Sunday) for a local date string. */
 export function dayOfWeekFor(date: string): DayOfWeek {
   return parseDateString(date).getDay() as DayOfWeek;
