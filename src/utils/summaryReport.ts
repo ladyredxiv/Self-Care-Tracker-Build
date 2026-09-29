@@ -34,6 +34,8 @@ export function buildSummaryReport(input: SummaryInput): string {
   const { from, to, records, payback, categories, tasks, avgCapacity, avgSpent } = input;
 
   const rated = records.filter((r) => r.rating !== null);
+  // DayRecord.spent is the net position, so this stays correct for days topped up
+  // by restorative activities.
   const overBudget = records.filter((r) => r.spent > r.budget);
   const activeDays = records.filter((r) => r.spent !== 0 || r.rating !== null);
 

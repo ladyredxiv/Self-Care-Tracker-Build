@@ -357,19 +357,36 @@ export function materializeBudgetForDate(date: string, fallback: number): number
   return fallback;
 }
 
-/** Total energy spent (sum of completed tasks' energy cost) per date, for dates within the given range. */
-export function getEnergySpentByDate(startDate: string, endDate: string): Record<string, number> {
+/** Energy expended and energy given back, for one date. */
+export interface DayEnergy {
+  spent: number;
+  restored: number;
+}
+
+/**
+ * Energy per date, split into what was expended and what was given back.
+ *
+ * Kept apart rather than netted because a day whose restoratives outweigh its
+ * costs nets to a negative number — which can't be drawn as a bar and reads as
+ * nonsense in a figure like "usually spent −0.5". Callers wanting the net take
+ * spent minus restored.
+ */
+export function getEnergyByDate(startDate: string, endDate: string): Record<string, DayEnergy> {
+  const amount = "COALESCE(completions.spoonsSpent, tasks.energyCost)";
   const rows = db.getAllSync<any>(
-    `SELECT completions.date as date, SUM(COALESCE(completions.spoonsSpent, tasks.energyCost)) as spent
+    `SELECT completions.date as date,
+            SUM(CASE WHEN ${amount} > 0 THEN ${amount} ELSE 0 END) as spent,
+            SUM(CASE WHEN ${amount} < 0 THEN -${amount} ELSE 0 END) as restored
      FROM completions
      JOIN tasks ON tasks.id = completions.taskId
      WHERE completions.date BETWEEN ? AND ?
      GROUP BY completions.date`,
     [startDate, endDate]
   );
-  const result: Record<string, number> = {};
+
+  const result: Record<string, DayEnergy> = {};
   for (const row of rows) {
-    result[row.date] = row.spent;
+    result[row.date] = { spent: row.spent ?? 0, restored: row.restored ?? 0 };
   }
   return result;
 }
@@ -439,7 +456,9 @@ export function getEnergySpentByCategory(
   endDate: string
 ): { category: string; spent: number }[] {
   return db.getAllSync<any>(
-    `SELECT tasks.category as category, SUM(COALESCE(completions.spoonsSpent, tasks.energyCost)) as spent
+    `SELECT tasks.category as category,
+            SUM(CASE WHEN COALESCE(completions.spoonsSpent, tasks.energyCost) > 0
+                     THEN COALESCE(completions.spoonsSpent, tasks.energyCost) ELSE 0 END) as spent
      FROM completions
      JOIN tasks ON tasks.id = completions.taskId
      WHERE completions.date BETWEEN ? AND ?

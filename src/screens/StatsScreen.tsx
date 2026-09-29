@@ -34,17 +34,18 @@ export default function StatsScreen() {
     }, [])
   );
 
-  const daysWithData = trend.filter((d) => d.spent > 0 || d.hasExplicitBudget);
+  const daysWithData = trend.filter((d) => d.spent > 0 || d.restored > 0 || d.hasExplicitBudget);
   const avgUtilization =
     daysWithData.length > 0
       ? Math.round(
-          (daysWithData.reduce((sum, d) => sum + d.spent / Math.max(d.budget, 1), 0) /
+          (daysWithData.reduce((sum, d) => sum + d.spent / Math.max(d.capacity, 1), 0) /
             daysWithData.length) *
             100
         )
       : 0;
-  const daysOverBudget = trend.filter((d) => d.spent > d.budget).length;
-  const maxScale = Math.max(1, ...trend.map((d) => Math.max(d.budget, d.spent)));
+  // Over capacity, so a day topped up by restoratives isn't counted as an overspend.
+  const daysOverBudget = trend.filter((d) => d.spent > d.capacity).length;
+  const maxScale = Math.max(1, ...trend.map((d) => Math.max(d.capacity, d.spent)));
 
   return (
     <View style={styles.screen}>
@@ -79,15 +80,15 @@ export default function StatsScreen() {
       <View style={styles.legend}>
         <View style={styles.legendItem}>
           <View style={[styles.legendSwatch, styles.budgetSwatch]} />
-          <Text style={styles.legendText}>Budget</Text>
+          <Text style={styles.legendText}>Available</Text>
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.legendSwatch, styles.spentSwatch]} />
-          <Text style={styles.legendText}>Spent (within budget)</Text>
+          <Text style={styles.legendText}>Spent</Text>
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.legendSwatch, styles.overSwatch]} />
-          <Text style={styles.legendText}>Spent (over budget)</Text>
+          <Text style={styles.legendText}>Over</Text>
         </View>
       </View>
 
@@ -101,7 +102,7 @@ export default function StatsScreen() {
 
 function InsightsSection({ insights }: { insights: Insights }) {
   const styles = useThemedStyles(createStyles);
-  const { payback, categories, costSuggestions, avgCapacity, avgSpent } = insights;
+  const { payback, categories, costSuggestions, avgCapacity, avgSpent, avgRestored } = insights;
   const heaviest = categories.slice(0, 4);
   const totalCategorySpend = categories.reduce((sum, c) => sum + c.spent, 0);
 
@@ -121,6 +122,12 @@ function InsightsSection({ insights }: { insights: Insights }) {
           {avgSpent === null ? "—" : avgSpent.toFixed(1)}
         </Text>
       </View>
+      {avgRestored !== null && avgRestored > 0 && (
+        <View style={styles.insightRow}>
+          <Text style={styles.insightLabel}>Usually restored</Text>
+          <Text style={styles.insightValue}>+{avgRestored.toFixed(1)}</Text>
+        </View>
+      )}
       <View style={styles.insightRow}>
         <Text style={styles.insightLabel}>Days over budget</Text>
         <Text style={styles.insightValue}>{payback.overBudgetDays}</Text>
@@ -252,9 +259,11 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
 
 function DayBar({ day, maxScale }: { day: DayUsage; maxScale: number }) {
   const styles = useThemedStyles(createStyles);
-  const budgetHeight = (day.budget / maxScale) * CHART_HEIGHT;
-  const spentHeight = (Math.min(day.spent, day.budget) / maxScale) * CHART_HEIGHT;
-  const overHeight = (Math.max(day.spent - day.budget, 0) / maxScale) * CHART_HEIGHT;
+  // Against capacity rather than budget: restoring raises what was available, so a
+  // 3-spoon day on a 10 budget with 2 restored is 3 of 12, not 3 of 10.
+  const budgetHeight = (day.capacity / maxScale) * CHART_HEIGHT;
+  const spentHeight = (Math.min(day.spent, day.capacity) / maxScale) * CHART_HEIGHT;
+  const overHeight = (Math.max(day.spent - day.capacity, 0) / maxScale) * CHART_HEIGHT;
   const parsed = parseDateString(day.date);
   const dateLabel = parsed.toLocaleDateString(undefined, { weekday: "short" });
   const dayLabel = parsed.getDate();

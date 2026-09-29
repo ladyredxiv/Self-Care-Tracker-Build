@@ -686,7 +686,16 @@ export function groupByTimeOfDay<T extends { timeOfDay: TimeOfDay }>(
 export interface DayUsage {
   date: string;
   budget: number;
+  /** Energy expended. Never negative. */
   spent: number;
+  /** Energy given back by restorative activities. */
+  restored: number;
+  /**
+   * What was actually available: the day's budget plus anything restored.
+   * Restoring raises capacity rather than reducing spend, which keeps `spent`
+   * drawable and makes "over budget" mean the same thing it always did.
+   */
+  capacity: number;
   /** Whether this day has a saved budget, vs. falling back to the current default. */
   hasExplicitBudget: boolean;
 }
@@ -702,15 +711,19 @@ export interface DayUsage {
 export function buildUsageTrend(
   dates: string[],
   budgetByDate: Readonly<Record<string, number | null>>,
-  spentByDate: Readonly<Record<string, number>>,
+  energyByDate: Readonly<Record<string, { spent: number; restored: number }>>,
   fallbackBudget: number
 ): DayUsage[] {
   return dates.map((date) => {
     const explicitBudget = budgetByDate[date] ?? null;
+    const budget = explicitBudget ?? fallbackBudget;
+    const energy = energyByDate[date] ?? { spent: 0, restored: 0 };
     return {
       date,
-      budget: explicitBudget ?? fallbackBudget,
-      spent: spentByDate[date] ?? 0,
+      budget,
+      spent: energy.spent,
+      restored: energy.restored,
+      capacity: budget + energy.restored,
       hasExplicitBudget: explicitBudget !== null,
     };
   });

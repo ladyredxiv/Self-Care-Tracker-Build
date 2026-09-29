@@ -1218,29 +1218,65 @@ describe("groupByTimeOfDay", () => {
 });
 
 describe("buildUsageTrend", () => {
+  const energy = (spent: number, restored = 0) => ({ spent, restored });
+
   it("prefers each day's saved budget over the current default", () => {
     const trend = buildUsageTrend(
       ["2026-09-24", "2026-09-25"],
       { "2026-09-24": 6, "2026-09-25": 12 },
-      { "2026-09-25": 4 },
+      { "2026-09-25": energy(4) },
       99
     );
-    assert.deepEqual(trend, [
-      { date: "2026-09-24", budget: 6, spent: 0, hasExplicitBudget: true },
-      { date: "2026-09-25", budget: 12, spent: 4, hasExplicitBudget: true },
-    ]);
+    assert.deepEqual(
+      trend.map((d) => [d.date, d.budget, d.spent]),
+      [
+        ["2026-09-24", 6, 0],
+        ["2026-09-25", 12, 4],
+      ]
+    );
   });
 
   it("falls back only for days with no saved budget", () => {
     const trend = buildUsageTrend(["2026-09-24"], { "2026-09-24": null }, {}, 10);
-    assert.deepEqual(trend, [
-      { date: "2026-09-24", budget: 10, spent: 0, hasExplicitBudget: false },
-    ]);
+    assert.equal(trend[0].budget, 10);
+    assert.equal(trend[0].hasExplicitBudget, false);
   });
 
   it("treats a saved budget of 0 as explicit", () => {
     const trend = buildUsageTrend(["2026-09-24"], { "2026-09-24": 0 }, {}, 10);
     assert.equal(trend[0].budget, 0);
     assert.equal(trend[0].hasExplicitBudget, true);
+  });
+
+  it("raises capacity by what was restored rather than lowering spend", () => {
+    // The bug this fixes: netting a restorative against spend produced a negative
+    // number, which drew as no bar at all and read as "spent -2".
+    const trend = buildUsageTrend(
+      ["2026-09-25"],
+      { "2026-09-25": 10 },
+      { "2026-09-25": energy(3, 2) },
+      10
+    );
+    assert.equal(trend[0].spent, 3, "spent stays what was actually expended");
+    assert.equal(trend[0].restored, 2);
+    assert.equal(trend[0].capacity, 12, "restoring gives you more to spend");
+  });
+
+  it("never reports negative spend on a purely restorative day", () => {
+    const trend = buildUsageTrend(
+      ["2026-09-25"],
+      { "2026-09-25": 7 },
+      { "2026-09-25": energy(0, 2) },
+      7
+    );
+    assert.equal(trend[0].spent, 0);
+    assert.equal(trend[0].capacity, 9);
+  });
+
+  it("defaults a day with no completions to zero of both", () => {
+    const trend = buildUsageTrend(["2026-09-25"], { "2026-09-25": 8 }, {}, 8);
+    assert.equal(trend[0].spent, 0);
+    assert.equal(trend[0].restored, 0);
+    assert.equal(trend[0].capacity, 8);
   });
 });

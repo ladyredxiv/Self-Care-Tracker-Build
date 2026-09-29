@@ -19,7 +19,7 @@ import {
   getEnergySpentByCategory,
   getCompletedDatesByTask,
   getCompletionsForDate,
-  getEnergySpentByDate,
+  getEnergyByDate,
   getSetting,
   markCheckedIn,
   materializeBudgetForDate,
@@ -41,6 +41,15 @@ import {
   rankCategoryLoad,
   suggestCostAdjustments,
 } from "./logic";
+
+/**
+ * Net position for a day: what was expended less what was given back. This is what
+ * "over budget" means, and what the payback analysis compares against.
+ */
+function netEnergy(energy: { spent: number; restored: number } | undefined): number {
+  if (!energy) return 0;
+  return energy.spent - energy.restored;
+}
 
 /** Used until the user sets a budget of their own. */
 export const FALLBACK_BUDGET = 10;
@@ -114,7 +123,10 @@ export interface Insights {
   costSuggestions: CostSuggestion[];
   categories: CategoryLoad[];
   avgCapacity: number | null;
+  /** Energy expended, never negative. */
   avgSpent: number | null;
+  /** Energy given back, reported separately so neither figure can go negative. */
+  avgRestored: number | null;
 }
 
 /**
@@ -126,20 +138,22 @@ export function loadInsights(days: number, today: string): Insights {
   const dates: string[] = [];
   for (let i = days - 1; i >= 0; i--) dates.push(shiftDateString(today, -i));
 
-  const spentByDate = getEnergySpentByDate(start, today);
+  const energyByDate = getEnergyByDate(start, today);
   const ratingByDate = new Map(getDayLogsBetween(start, today).map((log) => [log.date, log.rating]));
   const fallback = getDefaultBudget();
 
   const records: DayRecord[] = dates.map((date) => ({
     date,
     budget: getBudgetForDate(date) ?? fallback,
-    spent: spentByDate[date] ?? 0,
+    spent: netEnergy(energyByDate[date]),
     rating: ratingByDate.get(date) ?? null,
   }));
 
   // Days the user never opened the app have no budget and no spend; averaging them
   // in would drag every figure toward zero.
-  const active = records.filter((r) => r.spent > 0 || ratingByDate.has(r.date));
+  const active = records.filter(
+    (r) => energyByDate[r.date] !== undefined || ratingByDate.has(r.date)
+  );
   const average = (values: number[]) =>
     values.length === 0 ? null : values.reduce((a, b) => a + b, 0) / values.length;
 
@@ -164,7 +178,8 @@ export function loadInsights(days: number, today: string): Insights {
     costSuggestions,
     categories: rankCategoryLoad(getEnergySpentByCategory(start, today)),
     avgCapacity: average(active.map((r) => r.budget)),
-    avgSpent: average(active.map((r) => r.spent)),
+    avgSpent: average(active.map((r) => energyByDate[r.date]?.spent ?? 0)),
+    avgRestored: average(active.map((r) => energyByDate[r.date]?.restored ?? 0)),
   };
 }
 
@@ -202,7 +217,7 @@ export function loadSummaryInput(days: number, today: string): SummaryInput {
   const from = shiftDateString(today, -(days - 1));
   const insights = loadInsights(days, today);
 
-  const spentByDate = getEnergySpentByDate(from, today);
+  const energyByDate = getEnergyByDate(from, today);
   const ratingByDate = new Map(getDayLogsBetween(from, today).map((l) => [l.date, l.rating]));
   const fallback = getDefaultBudget();
 
@@ -212,7 +227,7 @@ export function loadSummaryInput(days: number, today: string): SummaryInput {
     records.push({
       date,
       budget: getBudgetForDate(date) ?? fallback,
-      spent: spentByDate[date] ?? 0,
+      spent: netEnergy(energyByDate[date]),
       rating: ratingByDate.get(date) ?? null,
     });
   }
@@ -270,7 +285,7 @@ export function loadUsageTrend(days: number, today: string): DayUsage[] {
   return buildUsageTrend(
     dates,
     budgetByDate,
-    getEnergySpentByDate(dates[0], dates[dates.length - 1]),
+    getEnergyByDate(dates[0], dates[dates.length - 1]),
     getDefaultBudget()
   );
 }
