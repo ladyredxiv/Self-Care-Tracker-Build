@@ -50,3 +50,7 @@ Per `AGENTS.md`, that split matters for how a change ships:
 
 This README only describes those steps; it does not run them, and this repo
 has no build or publish commands committed to it beyond what's shown above.
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to set up and submit changes.
