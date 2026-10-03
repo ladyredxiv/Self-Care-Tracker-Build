@@ -15,6 +15,21 @@ typecheck` runs `tsc --noEmit`. Run both before opening a pull request — the
 GitHub Actions workflow in `.github/workflows/ci.yml` runs both on every pull
 request (and on pushes to `master`), so a failing check will block review.
 
+## Project layout
+
+- `App.tsx` — root component: sets up the database, notifications, theming,
+  and the screen navigator.
+- `index.ts` — entry point; registers the root component and the widget task
+  handler.
+- `src/` — app code, organized by kind: `components/`, `screens/`, `db/`,
+  `hooks/`, `utils/`, and `widget/`, plus top-level modules like `theme.tsx`
+  and `notifications.ts`.
+- `assets/` — app icons, splash image, and illustration art used in the UI.
+- `app.json` — Expo app config (name, version, runtime policy, platforms).
+- `eas.json` — EAS Build/Submit config (the `preview` and `production`
+  profiles and channels).
+- `AGENTS.md` — instructions for coding agents working in this repo.
+
 ## Native config and dependencies
 
 `runtimeVersion.policy` in `app.json` is set to `appVersion`: the installed
