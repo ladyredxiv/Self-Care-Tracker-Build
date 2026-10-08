@@ -311,8 +311,6 @@ export default function SettingsScreen() {
 
       <View style={styles.divider} />
 
-      <View style={styles.divider} />
-
       <Text style={styles.sectionLabel}>App updates</Text>
       <Text style={styles.sectionBody}>
         Currently running: {describeBundle()}
