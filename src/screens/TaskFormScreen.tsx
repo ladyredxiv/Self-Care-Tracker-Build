@@ -113,12 +113,28 @@ export default function TaskFormScreen() {
   };
 
   const save = async () => {
+    if (!name.trim()) {
+      Alert.alert("Name needed", "Give the task a name before saving.");
+      return;
+    }
+
     const magnitude = parseInt(energyCost, 10);
-    if (!name.trim() || Number.isNaN(magnitude) || magnitude < 0) return;
+    if (Number.isNaN(magnitude) || magnitude < 0) {
+      Alert.alert(
+        "Invalid energy cost",
+        isRestorative
+          ? "Spoons given back must be a non-negative number."
+          : "Energy cost must be a non-negative number."
+      );
+      return;
+    }
     const cost = isRestorative ? -magnitude : magnitude;
 
     const interval = parseInt(intervalDays, 10);
-    if (scheduleType === "interval" && (Number.isNaN(interval) || interval < 1)) return;
+    if (scheduleType === "interval" && (Number.isNaN(interval) || interval < 1)) {
+      Alert.alert("Invalid interval", "Days between must be a positive whole number.");
+      return;
+    }
 
     const payload = {
       name: name.trim(),
